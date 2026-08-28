@@ -1,0 +1,22 @@
+# Anchor / Rust
+.anchor
+target
+**/*.rs.bk
+test-ledger
+
+# Node
+node_modules
+.pnpm-store
+
+# Next.js
+web/.next
+web/out
+web/next-env.d.ts
+web/tsconfig.tsbuildinfo
+
+# Env
+.env
+.env*.local
+
+# Misc
+.DS_Store

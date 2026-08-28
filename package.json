@@ -1,0 +1,29 @@
+{
+  "name": "savora-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "codegen": "tsx scripts/codegen.ts",
+    "test:program": "vitest run",
+    "test:program:watch": "vitest"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "@codama/nodes-from-anchor": "1.5.5",
+    "@codama/renderers-js": "2.4.0",
+    "@solana-program/system": "0.14.0",
+    "@solana-program/token": "0.16.0",
+    "@solana/kit": "8.1.0",
+    "@solana/program-client-core": "8.1.0",
+    "codama": "1.10.2",
+    "litesvm": "1.4.1",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  }
+}
