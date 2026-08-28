@@ -1,2 +1,3 @@
+# Anchor-workspace tooling only (codegen + vitest run on tsx/esbuild).
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true

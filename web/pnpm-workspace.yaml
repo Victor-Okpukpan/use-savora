@@ -1,7 +1,12 @@
+# Build scripts for native optional addons pulled in transitively (Privy's
+# WalletConnect stack, `ws`, image + resolver tooling). Approved so
+# `pnpm install` doesn't fail on ignored build scripts in CI (Vercel).
+# Savora is Solana-only and uses none of them at runtime; all ship prebuilt
+# binaries or pure-JS fallbacks anyway.
 allowBuilds:
-  '@reown/appkit': set this to true or false
-  bufferutil: set this to true or false
-  keccak: set this to true or false
-  sharp: false
-  unrs-resolver: false
-  utf-8-validate: set this to true or false
+  '@reown/appkit': true
+  bufferutil: true
+  keccak: true
+  sharp: true
+  unrs-resolver: true
+  utf-8-validate: true
