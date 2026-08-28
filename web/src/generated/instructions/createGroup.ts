@@ -65,6 +65,7 @@ export type CreateGroupInstruction<
   TAccountGroup extends string | AccountMeta<string> = string,
   TAccountMint extends string | AccountMeta<string> = string,
   TAccountVault extends string | AccountMeta<string> = string,
+  TAccountCreatorToken extends string | AccountMeta<string> = string,
   TAccountTokenProgram extends string | AccountMeta<string> =
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
   TAccountAssociatedTokenProgram extends string | AccountMeta<string> =
@@ -89,6 +90,9 @@ export type CreateGroupInstruction<
       TAccountVault extends string
         ? WritableAccount<TAccountVault>
         : TAccountVault,
+      TAccountCreatorToken extends string
+        ? WritableAccount<TAccountCreatorToken>
+        : TAccountCreatorToken,
       TAccountTokenProgram extends string
         ? ReadonlyAccount<TAccountTokenProgram>
         : TAccountTokenProgram,
@@ -107,16 +111,22 @@ export type CreateGroupInstructionData = {
   seed: bigint;
   name: ReadonlyUint8Array;
   contribution: bigint;
+  deposit: bigint;
   cycleSecs: bigint;
+  graceSecs: bigint;
   capacity: number;
+  rotations: number;
 };
 
 export type CreateGroupInstructionDataArgs = {
   seed: number | bigint;
   name: ReadonlyUint8Array;
   contribution: number | bigint;
+  deposit: number | bigint;
   cycleSecs: number | bigint;
+  graceSecs: number | bigint;
   capacity: number;
+  rotations: number;
 };
 
 export function getCreateGroupInstructionDataEncoder(): FixedSizeEncoder<CreateGroupInstructionDataArgs> {
@@ -126,8 +136,11 @@ export function getCreateGroupInstructionDataEncoder(): FixedSizeEncoder<CreateG
       ["seed", getU64Encoder()],
       ["name", fixEncoderSize(getBytesEncoder(), 32)],
       ["contribution", getU64Encoder()],
+      ["deposit", getU64Encoder()],
       ["cycleSecs", getI64Encoder()],
+      ["graceSecs", getI64Encoder()],
       ["capacity", getU8Encoder()],
+      ["rotations", getU8Encoder()],
     ]),
     (value) => ({ ...value, discriminator: CREATE_GROUP_DISCRIMINATOR }),
   );
@@ -139,8 +152,11 @@ export function getCreateGroupInstructionDataDecoder(): FixedSizeDecoder<CreateG
     ["seed", getU64Decoder()],
     ["name", fixDecoderSize(getBytesDecoder(), 32)],
     ["contribution", getU64Decoder()],
+    ["deposit", getU64Decoder()],
     ["cycleSecs", getI64Decoder()],
+    ["graceSecs", getI64Decoder()],
     ["capacity", getU8Decoder()],
+    ["rotations", getU8Decoder()],
   ]);
 }
 
@@ -159,6 +175,7 @@ export type CreateGroupAsyncInput<
   TAccountGroup extends string = string,
   TAccountMint extends string = string,
   TAccountVault extends string = string,
+  TAccountCreatorToken extends string = string,
   TAccountTokenProgram extends string = string,
   TAccountAssociatedTokenProgram extends string = string,
   TAccountSystemProgram extends string = string,
@@ -167,7 +184,9 @@ export type CreateGroupAsyncInput<
   group?: Address<TAccountGroup>;
   /**
    * Token this circle contributes and pays out in. Pinned here; every later
-   * instruction checks its token accounts against `group.mint`.
+   * instruction checks its token accounts against `group.mint`. Constrained
+   * to a classic SPL Token mint so no Token-2022 extension (transfer hook,
+   * transfer fee, pause) can break the vault accounting mid-rotation.
    */
   mint: Address<TAccountMint>;
   /**
@@ -175,14 +194,22 @@ export type CreateGroupAsyncInput<
    * move funds out of it, and only along the rotation.
    */
   vault?: Address<TAccountVault>;
+  /**
+   * The creator's own token account — their security deposit is pulled from
+   * here into the vault, same as every other member at join.
+   */
+  creatorToken?: Address<TAccountCreatorToken>;
   tokenProgram?: Address<TAccountTokenProgram>;
   associatedTokenProgram?: Address<TAccountAssociatedTokenProgram>;
   systemProgram?: Address<TAccountSystemProgram>;
   seed: CreateGroupInstructionDataArgs["seed"];
   name: CreateGroupInstructionDataArgs["name"];
   contribution: CreateGroupInstructionDataArgs["contribution"];
+  deposit: CreateGroupInstructionDataArgs["deposit"];
   cycleSecs: CreateGroupInstructionDataArgs["cycleSecs"];
+  graceSecs: CreateGroupInstructionDataArgs["graceSecs"];
   capacity: CreateGroupInstructionDataArgs["capacity"];
+  rotations: CreateGroupInstructionDataArgs["rotations"];
 };
 
 export async function getCreateGroupInstructionAsync<
@@ -190,6 +217,7 @@ export async function getCreateGroupInstructionAsync<
   TAccountGroup extends string,
   TAccountMint extends string,
   TAccountVault extends string,
+  TAccountCreatorToken extends string,
   TAccountTokenProgram extends string,
   TAccountAssociatedTokenProgram extends string,
   TAccountSystemProgram extends string,
@@ -200,6 +228,7 @@ export async function getCreateGroupInstructionAsync<
     TAccountGroup,
     TAccountMint,
     TAccountVault,
+    TAccountCreatorToken,
     TAccountTokenProgram,
     TAccountAssociatedTokenProgram,
     TAccountSystemProgram
@@ -212,6 +241,7 @@ export async function getCreateGroupInstructionAsync<
     TAccountGroup,
     TAccountMint,
     TAccountVault,
+    TAccountCreatorToken,
     TAccountTokenProgram,
     TAccountAssociatedTokenProgram,
     TAccountSystemProgram
@@ -226,6 +256,7 @@ export async function getCreateGroupInstructionAsync<
     group: { value: input.group ?? null, isWritable: true },
     mint: { value: input.mint ?? null, isWritable: false },
     vault: { value: input.vault ?? null, isWritable: true },
+    creatorToken: { value: input.creatorToken ?? null, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
     associatedTokenProgram: {
       value: input.associatedTokenProgram ?? null,
@@ -278,6 +309,30 @@ export async function getCreateGroupInstructionAsync<
       ],
     });
   }
+  if (!accounts.creatorToken.value) {
+    accounts.creatorToken.value = await getProgramDerivedAddress({
+      programAddress:
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" as Address<"ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL">,
+      seeds: [
+        getAddressEncoder().encode(
+          getAddressFromResolvedInstructionAccount(
+            "creator",
+            accounts.creator.value,
+          ),
+        ),
+        getBytesEncoder().encode(
+          new Uint8Array([
+            6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235,
+            121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133,
+            126, 255, 0, 169,
+          ]),
+        ),
+        getAddressEncoder().encode(
+          getAddressFromResolvedInstructionAccount("mint", accounts.mint.value),
+        ),
+      ],
+    });
+  }
   if (!accounts.tokenProgram.value) {
     accounts.tokenProgram.value =
       "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
@@ -298,6 +353,7 @@ export async function getCreateGroupInstructionAsync<
       getAccountMeta("group", accounts.group),
       getAccountMeta("mint", accounts.mint),
       getAccountMeta("vault", accounts.vault),
+      getAccountMeta("creatorToken", accounts.creatorToken),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
       getAccountMeta("associatedTokenProgram", accounts.associatedTokenProgram),
       getAccountMeta("systemProgram", accounts.systemProgram),
@@ -312,6 +368,7 @@ export async function getCreateGroupInstructionAsync<
     TAccountGroup,
     TAccountMint,
     TAccountVault,
+    TAccountCreatorToken,
     TAccountTokenProgram,
     TAccountAssociatedTokenProgram,
     TAccountSystemProgram
@@ -323,6 +380,7 @@ export type CreateGroupInput<
   TAccountGroup extends string = string,
   TAccountMint extends string = string,
   TAccountVault extends string = string,
+  TAccountCreatorToken extends string = string,
   TAccountTokenProgram extends string = string,
   TAccountAssociatedTokenProgram extends string = string,
   TAccountSystemProgram extends string = string,
@@ -331,7 +389,9 @@ export type CreateGroupInput<
   group: Address<TAccountGroup>;
   /**
    * Token this circle contributes and pays out in. Pinned here; every later
-   * instruction checks its token accounts against `group.mint`.
+   * instruction checks its token accounts against `group.mint`. Constrained
+   * to a classic SPL Token mint so no Token-2022 extension (transfer hook,
+   * transfer fee, pause) can break the vault accounting mid-rotation.
    */
   mint: Address<TAccountMint>;
   /**
@@ -339,14 +399,22 @@ export type CreateGroupInput<
    * move funds out of it, and only along the rotation.
    */
   vault: Address<TAccountVault>;
+  /**
+   * The creator's own token account — their security deposit is pulled from
+   * here into the vault, same as every other member at join.
+   */
+  creatorToken: Address<TAccountCreatorToken>;
   tokenProgram?: Address<TAccountTokenProgram>;
   associatedTokenProgram?: Address<TAccountAssociatedTokenProgram>;
   systemProgram?: Address<TAccountSystemProgram>;
   seed: CreateGroupInstructionDataArgs["seed"];
   name: CreateGroupInstructionDataArgs["name"];
   contribution: CreateGroupInstructionDataArgs["contribution"];
+  deposit: CreateGroupInstructionDataArgs["deposit"];
   cycleSecs: CreateGroupInstructionDataArgs["cycleSecs"];
+  graceSecs: CreateGroupInstructionDataArgs["graceSecs"];
   capacity: CreateGroupInstructionDataArgs["capacity"];
+  rotations: CreateGroupInstructionDataArgs["rotations"];
 };
 
 export function getCreateGroupInstruction<
@@ -354,6 +422,7 @@ export function getCreateGroupInstruction<
   TAccountGroup extends string,
   TAccountMint extends string,
   TAccountVault extends string,
+  TAccountCreatorToken extends string,
   TAccountTokenProgram extends string,
   TAccountAssociatedTokenProgram extends string,
   TAccountSystemProgram extends string,
@@ -364,6 +433,7 @@ export function getCreateGroupInstruction<
     TAccountGroup,
     TAccountMint,
     TAccountVault,
+    TAccountCreatorToken,
     TAccountTokenProgram,
     TAccountAssociatedTokenProgram,
     TAccountSystemProgram
@@ -375,6 +445,7 @@ export function getCreateGroupInstruction<
   TAccountGroup,
   TAccountMint,
   TAccountVault,
+  TAccountCreatorToken,
   TAccountTokenProgram,
   TAccountAssociatedTokenProgram,
   TAccountSystemProgram
@@ -388,6 +459,7 @@ export function getCreateGroupInstruction<
     group: { value: input.group ?? null, isWritable: true },
     mint: { value: input.mint ?? null, isWritable: false },
     vault: { value: input.vault ?? null, isWritable: true },
+    creatorToken: { value: input.creatorToken ?? null, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
     associatedTokenProgram: {
       value: input.associatedTokenProgram ?? null,
@@ -424,6 +496,7 @@ export function getCreateGroupInstruction<
       getAccountMeta("group", accounts.group),
       getAccountMeta("mint", accounts.mint),
       getAccountMeta("vault", accounts.vault),
+      getAccountMeta("creatorToken", accounts.creatorToken),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
       getAccountMeta("associatedTokenProgram", accounts.associatedTokenProgram),
       getAccountMeta("systemProgram", accounts.systemProgram),
@@ -438,6 +511,7 @@ export function getCreateGroupInstruction<
     TAccountGroup,
     TAccountMint,
     TAccountVault,
+    TAccountCreatorToken,
     TAccountTokenProgram,
     TAccountAssociatedTokenProgram,
     TAccountSystemProgram
@@ -454,7 +528,9 @@ export type ParsedCreateGroupInstruction<
     group: TAccountMetas[1];
     /**
      * Token this circle contributes and pays out in. Pinned here; every later
-     * instruction checks its token accounts against `group.mint`.
+     * instruction checks its token accounts against `group.mint`. Constrained
+     * to a classic SPL Token mint so no Token-2022 extension (transfer hook,
+     * transfer fee, pause) can break the vault accounting mid-rotation.
      */
     mint: TAccountMetas[2];
     /**
@@ -462,9 +538,14 @@ export type ParsedCreateGroupInstruction<
      * move funds out of it, and only along the rotation.
      */
     vault: TAccountMetas[3];
-    tokenProgram: TAccountMetas[4];
-    associatedTokenProgram: TAccountMetas[5];
-    systemProgram: TAccountMetas[6];
+    /**
+     * The creator's own token account — their security deposit is pulled from
+     * here into the vault, same as every other member at join.
+     */
+    creatorToken: TAccountMetas[4];
+    tokenProgram: TAccountMetas[5];
+    associatedTokenProgram: TAccountMetas[6];
+    systemProgram: TAccountMetas[7];
   };
   data: CreateGroupInstructionData;
 };
@@ -477,12 +558,12 @@ export function parseCreateGroupInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedCreateGroupInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 7) {
+  if (instruction.accounts.length < 8) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
       {
         actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 7,
+        expectedAccountMetas: 8,
       },
     );
   }
@@ -499,6 +580,7 @@ export function parseCreateGroupInstruction<
       group: getNextAccount(),
       mint: getNextAccount(),
       vault: getNextAccount(),
+      creatorToken: getNextAccount(),
       tokenProgram: getNextAccount(),
       associatedTokenProgram: getNextAccount(),
       systemProgram: getNextAccount(),

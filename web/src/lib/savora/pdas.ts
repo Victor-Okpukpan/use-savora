@@ -1,6 +1,7 @@
 import {
   getAddressEncoder,
   getProgramDerivedAddress,
+  getU16Encoder,
   getU64Encoder,
   type Address,
   type ProgramDerivedAddress,
@@ -30,9 +31,9 @@ export async function findGroupPda(
 }
 
 /**
- * `Cycle` PDA. Its seed uses the cycle index directly (not `group.current_cycle`),
- * so the client must pass the index it wants — the current one to act on it, or
- * a past one to read history.
+ * `Cycle` PDA. The seed is the *global* cycle index (a `u16`, little-endian) —
+ * it never resets across rotations. The client passes the index it wants: the
+ * current one to act on it, or a past one to read history.
  */
 export async function findCyclePda(
   group: Address,
@@ -43,7 +44,7 @@ export async function findCyclePda(
     seeds: [
       enc.encode("cycle"),
       getAddressEncoder().encode(group),
-      new Uint8Array([index]),
+      getU16Encoder().encode(index),
     ],
   });
 }

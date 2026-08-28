@@ -14,7 +14,7 @@ import {
 } from "@solana/kit";
 import { SAVORA_PROGRAM_ADDRESS } from "../programs";
 
-/** InvalidParams: Contribution, cycle length, or capacity is out of range */
+/** InvalidParams: Contribution, deposit, cycle length, grace, capacity, or rotations is out of range */
 export const SAVORA_ERROR__INVALID_PARAMS = 0x1770; // 6000
 /** GroupNotForming: Group is not accepting members */
 export const SAVORA_ERROR__GROUP_NOT_FORMING = 0x1771; // 6001
@@ -32,46 +32,102 @@ export const SAVORA_ERROR__GROUP_NOT_ACTIVE = 0x1776; // 6006
 export const SAVORA_ERROR__CYCLE_ALREADY_DISBURSED = 0x1777; // 6007
 /** AlreadyContributed: This member has already contributed to this cycle */
 export const SAVORA_ERROR__ALREADY_CONTRIBUTED = 0x1778; // 6008
-/** CycleNotReady: Cycle is not fully funded and the deadline has not passed */
+/** CycleNotReady: Cycle is not fully funded and the grace window has not closed */
 export const SAVORA_ERROR__CYCLE_NOT_READY = 0x1779; // 6009
-/** RotationComplete: The rotation for this group is already complete */
+/** RotationComplete: Every agreed rotation is already complete */
 export const SAVORA_ERROR__ROTATION_COMPLETE = 0x177a; // 6010
 /** MathOverflow: Arithmetic overflow */
 export const SAVORA_ERROR__MATH_OVERFLOW = 0x177b; // 6011
 /** SlotHashesUnavailable: SlotHashes sysvar could not be read for the rotation shuffle */
 export const SAVORA_ERROR__SLOT_HASHES_UNAVAILABLE = 0x177c; // 6012
+/** ContributionWindowClosed: The contribution window for this cycle has closed */
+export const SAVORA_ERROR__CONTRIBUTION_WINDOW_CLOSED = 0x177d; // 6013
+/** MemberEjected: This member has been ejected from the circle */
+export const SAVORA_ERROR__MEMBER_EJECTED = 0x177e; // 6014
+/** CircleCollapsed: The circle has too few active members to continue */
+export const SAVORA_ERROR__CIRCLE_COLLAPSED = 0x177f; // 6015
+/** NotCompleted: The circle has not completed its agreed rotations */
+export const SAVORA_ERROR__NOT_COMPLETED = 0x1780; // 6016
+/** NotExtending: The circle is not awaiting extension opt-ins */
+export const SAVORA_ERROR__NOT_EXTENDING = 0x1781; // 6017
+/** AlreadyOptedIn: This member has already opted into the extension */
+export const SAVORA_ERROR__ALREADY_OPTED_IN = 0x1782; // 6018
+/** OptInWindowClosed: The extension opt-in window has closed */
+export const SAVORA_ERROR__OPT_IN_WINDOW_CLOSED = 0x1783; // 6019
+/** AlreadyExited: This position has already been closed */
+export const SAVORA_ERROR__ALREADY_EXITED = 0x1784; // 6020
+/** CannotExitNow: Deposits cannot be withdrawn while the circle is running */
+export const SAVORA_ERROR__CANNOT_EXIT_NOW = 0x1785; // 6021
+/** CreatorOnly: Only the circle creator can do this */
+export const SAVORA_ERROR__CREATOR_ONLY = 0x1786; // 6022
+/** CreatorHasExited: The creator has withdrawn and can no longer extend the circle */
+export const SAVORA_ERROR__CREATOR_HAS_EXITED = 0x1787; // 6023
+/** InvalidRecipientToken: The recipient token account is not the canonical associated token account */
+export const SAVORA_ERROR__INVALID_RECIPIENT_TOKEN = 0x1788; // 6024
+/** UnsupportedMint: Mints with a transfer hook are not supported */
+export const SAVORA_ERROR__UNSUPPORTED_MINT = 0x1789; // 6025
+/** GroupNotEmpty: This circle still has members and cannot be closed */
+export const SAVORA_ERROR__GROUP_NOT_EMPTY = 0x178a; // 6026
 
 export type SavoraError =
   | typeof SAVORA_ERROR__ALREADY_CONTRIBUTED
+  | typeof SAVORA_ERROR__ALREADY_EXITED
   | typeof SAVORA_ERROR__ALREADY_MEMBER
+  | typeof SAVORA_ERROR__ALREADY_OPTED_IN
+  | typeof SAVORA_ERROR__CANNOT_EXIT_NOW
+  | typeof SAVORA_ERROR__CIRCLE_COLLAPSED
+  | typeof SAVORA_ERROR__CONTRIBUTION_WINDOW_CLOSED
   | typeof SAVORA_ERROR__CREATOR_CANNOT_LEAVE
+  | typeof SAVORA_ERROR__CREATOR_HAS_EXITED
+  | typeof SAVORA_ERROR__CREATOR_ONLY
   | typeof SAVORA_ERROR__CYCLE_ALREADY_DISBURSED
   | typeof SAVORA_ERROR__CYCLE_NOT_READY
   | typeof SAVORA_ERROR__GROUP_FULL
   | typeof SAVORA_ERROR__GROUP_NOT_ACTIVE
+  | typeof SAVORA_ERROR__GROUP_NOT_EMPTY
   | typeof SAVORA_ERROR__GROUP_NOT_FORMING
   | typeof SAVORA_ERROR__INVALID_PARAMS
+  | typeof SAVORA_ERROR__INVALID_RECIPIENT_TOKEN
   | typeof SAVORA_ERROR__MATH_OVERFLOW
+  | typeof SAVORA_ERROR__MEMBER_EJECTED
   | typeof SAVORA_ERROR__NOT_A_MEMBER
+  | typeof SAVORA_ERROR__NOT_COMPLETED
+  | typeof SAVORA_ERROR__NOT_EXTENDING
+  | typeof SAVORA_ERROR__OPT_IN_WINDOW_CLOSED
   | typeof SAVORA_ERROR__ROTATION_COMPLETE
-  | typeof SAVORA_ERROR__SLOT_HASHES_UNAVAILABLE;
+  | typeof SAVORA_ERROR__SLOT_HASHES_UNAVAILABLE
+  | typeof SAVORA_ERROR__UNSUPPORTED_MINT;
 
 let savoraErrorMessages: Record<SavoraError, string> | undefined;
 if (process.env["NODE_ENV"] !== "production") {
   savoraErrorMessages = {
     [SAVORA_ERROR__ALREADY_CONTRIBUTED]: `This member has already contributed to this cycle`,
+    [SAVORA_ERROR__ALREADY_EXITED]: `This position has already been closed`,
     [SAVORA_ERROR__ALREADY_MEMBER]: `Signer is already a member of this group`,
+    [SAVORA_ERROR__ALREADY_OPTED_IN]: `This member has already opted into the extension`,
+    [SAVORA_ERROR__CANNOT_EXIT_NOW]: `Deposits cannot be withdrawn while the circle is running`,
+    [SAVORA_ERROR__CIRCLE_COLLAPSED]: `The circle has too few active members to continue`,
+    [SAVORA_ERROR__CONTRIBUTION_WINDOW_CLOSED]: `The contribution window for this cycle has closed`,
     [SAVORA_ERROR__CREATOR_CANNOT_LEAVE]: `The creator cannot leave their own group`,
+    [SAVORA_ERROR__CREATOR_HAS_EXITED]: `The creator has withdrawn and can no longer extend the circle`,
+    [SAVORA_ERROR__CREATOR_ONLY]: `Only the circle creator can do this`,
     [SAVORA_ERROR__CYCLE_ALREADY_DISBURSED]: `This cycle has already been paid out`,
-    [SAVORA_ERROR__CYCLE_NOT_READY]: `Cycle is not fully funded and the deadline has not passed`,
+    [SAVORA_ERROR__CYCLE_NOT_READY]: `Cycle is not fully funded and the grace window has not closed`,
     [SAVORA_ERROR__GROUP_FULL]: `Group is already full`,
     [SAVORA_ERROR__GROUP_NOT_ACTIVE]: `Group is not active`,
+    [SAVORA_ERROR__GROUP_NOT_EMPTY]: `This circle still has members and cannot be closed`,
     [SAVORA_ERROR__GROUP_NOT_FORMING]: `Group is not accepting members`,
-    [SAVORA_ERROR__INVALID_PARAMS]: `Contribution, cycle length, or capacity is out of range`,
+    [SAVORA_ERROR__INVALID_PARAMS]: `Contribution, deposit, cycle length, grace, capacity, or rotations is out of range`,
+    [SAVORA_ERROR__INVALID_RECIPIENT_TOKEN]: `The recipient token account is not the canonical associated token account`,
     [SAVORA_ERROR__MATH_OVERFLOW]: `Arithmetic overflow`,
+    [SAVORA_ERROR__MEMBER_EJECTED]: `This member has been ejected from the circle`,
     [SAVORA_ERROR__NOT_A_MEMBER]: `Signer is not a member of this group`,
-    [SAVORA_ERROR__ROTATION_COMPLETE]: `The rotation for this group is already complete`,
+    [SAVORA_ERROR__NOT_COMPLETED]: `The circle has not completed its agreed rotations`,
+    [SAVORA_ERROR__NOT_EXTENDING]: `The circle is not awaiting extension opt-ins`,
+    [SAVORA_ERROR__OPT_IN_WINDOW_CLOSED]: `The extension opt-in window has closed`,
+    [SAVORA_ERROR__ROTATION_COMPLETE]: `Every agreed rotation is already complete`,
     [SAVORA_ERROR__SLOT_HASHES_UNAVAILABLE]: `SlotHashes sysvar could not be read for the rotation shuffle`,
+    [SAVORA_ERROR__UNSUPPORTED_MINT]: `Mints with a transfer hook are not supported`,
   };
 }
 

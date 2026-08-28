@@ -51,6 +51,8 @@ export type OpenCycleInstruction<
   TAccountPayer extends string | AccountMeta<string> = string,
   TAccountGroup extends string | AccountMeta<string> = string,
   TAccountCycle extends string | AccountMeta<string> = string,
+  TAccountSlotHashes extends string | AccountMeta<string> =
+    "SysvarS1otHashes111111111111111111111111111",
   TAccountSystemProgram extends string | AccountMeta<string> =
     "11111111111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
@@ -63,11 +65,14 @@ export type OpenCycleInstruction<
             AccountSignerMeta<TAccountPayer>
         : TAccountPayer,
       TAccountGroup extends string
-        ? ReadonlyAccount<TAccountGroup>
+        ? WritableAccount<TAccountGroup>
         : TAccountGroup,
       TAccountCycle extends string
         ? WritableAccount<TAccountCycle>
         : TAccountCycle,
+      TAccountSlotHashes extends string
+        ? ReadonlyAccount<TAccountSlotHashes>
+        : TAccountSlotHashes,
       TAccountSystemProgram extends string
         ? ReadonlyAccount<TAccountSystemProgram>
         : TAccountSystemProgram,
@@ -106,6 +111,7 @@ export type OpenCycleInput<
   TAccountPayer extends string = string,
   TAccountGroup extends string = string,
   TAccountCycle extends string = string,
+  TAccountSlotHashes extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
   /**
@@ -115,6 +121,8 @@ export type OpenCycleInput<
   payer: TransactionSigner<TAccountPayer>;
   group: Address<TAccountGroup>;
   cycle: Address<TAccountCycle>;
+  /** `recent_slot_hash` to seed the rotation shuffle at a rotation boundary. */
+  slotHashes?: Address<TAccountSlotHashes>;
   systemProgram?: Address<TAccountSystemProgram>;
 };
 
@@ -122,6 +130,7 @@ export function getOpenCycleInstruction<
   TAccountPayer extends string,
   TAccountGroup extends string,
   TAccountCycle extends string,
+  TAccountSlotHashes extends string,
   TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof SAVORA_PROGRAM_ADDRESS,
 >(
@@ -129,6 +138,7 @@ export function getOpenCycleInstruction<
     TAccountPayer,
     TAccountGroup,
     TAccountCycle,
+    TAccountSlotHashes,
     TAccountSystemProgram
   >,
   config?: { programAddress?: TProgramAddress },
@@ -137,6 +147,7 @@ export function getOpenCycleInstruction<
   TAccountPayer,
   TAccountGroup,
   TAccountCycle,
+  TAccountSlotHashes,
   TAccountSystemProgram
 > {
   // Program address.
@@ -145,8 +156,9 @@ export function getOpenCycleInstruction<
   // Original accounts.
   const originalAccounts = {
     payer: { value: input.payer ?? null, isWritable: true },
-    group: { value: input.group ?? null, isWritable: false },
+    group: { value: input.group ?? null, isWritable: true },
     cycle: { value: input.cycle ?? null, isWritable: true },
+    slotHashes: { value: input.slotHashes ?? null, isWritable: false },
     systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
@@ -155,6 +167,10 @@ export function getOpenCycleInstruction<
   >;
 
   // Resolve default values.
+  if (!accounts.slotHashes.value) {
+    accounts.slotHashes.value =
+      "SysvarS1otHashes111111111111111111111111111" as Address<"SysvarS1otHashes111111111111111111111111111">;
+  }
   if (!accounts.systemProgram.value) {
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
@@ -166,6 +182,7 @@ export function getOpenCycleInstruction<
       getAccountMeta("payer", accounts.payer),
       getAccountMeta("group", accounts.group),
       getAccountMeta("cycle", accounts.cycle),
+      getAccountMeta("slotHashes", accounts.slotHashes),
       getAccountMeta("systemProgram", accounts.systemProgram),
     ],
     data: getOpenCycleInstructionDataEncoder().encode({}),
@@ -175,6 +192,7 @@ export function getOpenCycleInstruction<
     TAccountPayer,
     TAccountGroup,
     TAccountCycle,
+    TAccountSlotHashes,
     TAccountSystemProgram
   >);
 }
@@ -192,7 +210,9 @@ export type ParsedOpenCycleInstruction<
     payer: TAccountMetas[0];
     group: TAccountMetas[1];
     cycle: TAccountMetas[2];
-    systemProgram: TAccountMetas[3];
+    /** `recent_slot_hash` to seed the rotation shuffle at a rotation boundary. */
+    slotHashes: TAccountMetas[3];
+    systemProgram: TAccountMetas[4];
   };
   data: OpenCycleInstructionData;
 };
@@ -205,12 +225,12 @@ export function parseOpenCycleInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedOpenCycleInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 4) {
+  if (instruction.accounts.length < 5) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
       {
         actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 4,
+        expectedAccountMetas: 5,
       },
     );
   }
@@ -226,6 +246,7 @@ export function parseOpenCycleInstruction<
       payer: getNextAccount(),
       group: getNextAccount(),
       cycle: getNextAccount(),
+      slotHashes: getNextAccount(),
       systemProgram: getNextAccount(),
     },
     data: getOpenCycleInstructionDataDecoder().decode(instruction.data),

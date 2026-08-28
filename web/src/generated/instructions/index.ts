@@ -6,9 +6,14 @@
  * @see https://github.com/codama-idl/codama
  */
 
+export * from "./cancelExtension";
+export * from "./closeGroup";
+export * from "./closePosition";
 export * from "./contribute";
 export * from "./createGroup";
 export * from "./disbursePayout";
 export * from "./joinGroup";
 export * from "./leaveGroup";
 export * from "./openCycle";
+export * from "./optInExtension";
+export * from "./proposeExtension";

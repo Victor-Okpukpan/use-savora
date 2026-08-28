@@ -41,15 +41,17 @@ import {
 } from "@solana/program-client-core";
 import { SAVORA_PROGRAM_ADDRESS } from "../programs";
 
-export const LEAVE_GROUP_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([
-  10, 4, 125, 28, 46, 23, 233, 29,
+export const CLOSE_POSITION_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([
+  123, 134, 81, 0, 49, 68, 98, 98,
 ]);
 
-export function getLeaveGroupDiscriminatorBytes(): ReadonlyUint8Array {
-  return fixEncoderSize(getBytesEncoder(), 8).encode(LEAVE_GROUP_DISCRIMINATOR);
+export function getClosePositionDiscriminatorBytes(): ReadonlyUint8Array {
+  return fixEncoderSize(getBytesEncoder(), 8).encode(
+    CLOSE_POSITION_DISCRIMINATOR,
+  );
 }
 
-export type LeaveGroupInstruction<
+export type ClosePositionInstruction<
   TProgram extends string = typeof SAVORA_PROGRAM_ADDRESS,
   TAccountMember extends string | AccountMeta<string> = string,
   TAccountGroup extends string | AccountMeta<string> = string,
@@ -86,34 +88,36 @@ export type LeaveGroupInstruction<
     ]
   >;
 
-export type LeaveGroupInstructionData = { discriminator: ReadonlyUint8Array };
+export type ClosePositionInstructionData = {
+  discriminator: ReadonlyUint8Array;
+};
 
-export type LeaveGroupInstructionDataArgs = {};
+export type ClosePositionInstructionDataArgs = {};
 
-export function getLeaveGroupInstructionDataEncoder(): FixedSizeEncoder<LeaveGroupInstructionDataArgs> {
+export function getClosePositionInstructionDataEncoder(): FixedSizeEncoder<ClosePositionInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([["discriminator", fixEncoderSize(getBytesEncoder(), 8)]]),
-    (value) => ({ ...value, discriminator: LEAVE_GROUP_DISCRIMINATOR }),
+    (value) => ({ ...value, discriminator: CLOSE_POSITION_DISCRIMINATOR }),
   );
 }
 
-export function getLeaveGroupInstructionDataDecoder(): FixedSizeDecoder<LeaveGroupInstructionData> {
+export function getClosePositionInstructionDataDecoder(): FixedSizeDecoder<ClosePositionInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
   ]);
 }
 
-export function getLeaveGroupInstructionDataCodec(): FixedSizeCodec<
-  LeaveGroupInstructionDataArgs,
-  LeaveGroupInstructionData
+export function getClosePositionInstructionDataCodec(): FixedSizeCodec<
+  ClosePositionInstructionDataArgs,
+  ClosePositionInstructionData
 > {
   return combineCodec(
-    getLeaveGroupInstructionDataEncoder(),
-    getLeaveGroupInstructionDataDecoder(),
+    getClosePositionInstructionDataEncoder(),
+    getClosePositionInstructionDataDecoder(),
   );
 }
 
-export type LeaveGroupAsyncInput<
+export type ClosePositionAsyncInput<
   TAccountMember extends string = string,
   TAccountGroup extends string = string,
   TAccountMint extends string = string,
@@ -129,7 +133,7 @@ export type LeaveGroupAsyncInput<
   tokenProgram?: Address<TAccountTokenProgram>;
 };
 
-export async function getLeaveGroupInstructionAsync<
+export async function getClosePositionInstructionAsync<
   TAccountMember extends string,
   TAccountGroup extends string,
   TAccountMint extends string,
@@ -138,7 +142,7 @@ export async function getLeaveGroupInstructionAsync<
   TAccountTokenProgram extends string,
   TProgramAddress extends Address = typeof SAVORA_PROGRAM_ADDRESS,
 >(
-  input: LeaveGroupAsyncInput<
+  input: ClosePositionAsyncInput<
     TAccountMember,
     TAccountGroup,
     TAccountMint,
@@ -148,7 +152,7 @@ export async function getLeaveGroupInstructionAsync<
   >,
   config?: { programAddress?: TProgramAddress },
 ): Promise<
-  LeaveGroupInstruction<
+  ClosePositionInstruction<
     TProgramAddress,
     TAccountMember,
     TAccountGroup,
@@ -239,9 +243,9 @@ export async function getLeaveGroupInstructionAsync<
       getAccountMeta("vault", accounts.vault),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
     ],
-    data: getLeaveGroupInstructionDataEncoder().encode({}),
+    data: getClosePositionInstructionDataEncoder().encode({}),
     programAddress,
-  } as LeaveGroupInstruction<
+  } as ClosePositionInstruction<
     TProgramAddress,
     TAccountMember,
     TAccountGroup,
@@ -252,7 +256,7 @@ export async function getLeaveGroupInstructionAsync<
   >);
 }
 
-export type LeaveGroupInput<
+export type ClosePositionInput<
   TAccountMember extends string = string,
   TAccountGroup extends string = string,
   TAccountMint extends string = string,
@@ -268,7 +272,7 @@ export type LeaveGroupInput<
   tokenProgram?: Address<TAccountTokenProgram>;
 };
 
-export function getLeaveGroupInstruction<
+export function getClosePositionInstruction<
   TAccountMember extends string,
   TAccountGroup extends string,
   TAccountMint extends string,
@@ -277,7 +281,7 @@ export function getLeaveGroupInstruction<
   TAccountTokenProgram extends string,
   TProgramAddress extends Address = typeof SAVORA_PROGRAM_ADDRESS,
 >(
-  input: LeaveGroupInput<
+  input: ClosePositionInput<
     TAccountMember,
     TAccountGroup,
     TAccountMint,
@@ -286,7 +290,7 @@ export function getLeaveGroupInstruction<
     TAccountTokenProgram
   >,
   config?: { programAddress?: TProgramAddress },
-): LeaveGroupInstruction<
+): ClosePositionInstruction<
   TProgramAddress,
   TAccountMember,
   TAccountGroup,
@@ -328,9 +332,9 @@ export function getLeaveGroupInstruction<
       getAccountMeta("vault", accounts.vault),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
     ],
-    data: getLeaveGroupInstructionDataEncoder().encode({}),
+    data: getClosePositionInstructionDataEncoder().encode({}),
     programAddress,
-  } as LeaveGroupInstruction<
+  } as ClosePositionInstruction<
     TProgramAddress,
     TAccountMember,
     TAccountGroup,
@@ -341,7 +345,7 @@ export function getLeaveGroupInstruction<
   >);
 }
 
-export type ParsedLeaveGroupInstruction<
+export type ParsedClosePositionInstruction<
   TProgram extends string = typeof SAVORA_PROGRAM_ADDRESS,
   TAccountMetas extends readonly AccountMeta[] = readonly AccountMeta[],
 > = {
@@ -354,17 +358,17 @@ export type ParsedLeaveGroupInstruction<
     vault: TAccountMetas[4];
     tokenProgram: TAccountMetas[5];
   };
-  data: LeaveGroupInstructionData;
+  data: ClosePositionInstructionData;
 };
 
-export function parseLeaveGroupInstruction<
+export function parseClosePositionInstruction<
   TProgram extends string,
   TAccountMetas extends readonly AccountMeta[],
 >(
   instruction: Instruction<TProgram> &
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
-): ParsedLeaveGroupInstruction<TProgram, TAccountMetas> {
+): ParsedClosePositionInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 6) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
@@ -390,6 +394,6 @@ export function parseLeaveGroupInstruction<
       vault: getNextAccount(),
       tokenProgram: getNextAccount(),
     },
-    data: getLeaveGroupInstructionDataDecoder().decode(instruction.data),
+    data: getClosePositionInstructionDataDecoder().decode(instruction.data),
   };
 }

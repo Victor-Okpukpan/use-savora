@@ -41,20 +41,20 @@ import {
 } from "@solana/program-client-core";
 import { SAVORA_PROGRAM_ADDRESS } from "../programs";
 
-export const LEAVE_GROUP_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([
-  10, 4, 125, 28, 46, 23, 233, 29,
+export const CLOSE_GROUP_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([
+  40, 187, 201, 187, 18, 194, 122, 232,
 ]);
 
-export function getLeaveGroupDiscriminatorBytes(): ReadonlyUint8Array {
-  return fixEncoderSize(getBytesEncoder(), 8).encode(LEAVE_GROUP_DISCRIMINATOR);
+export function getCloseGroupDiscriminatorBytes(): ReadonlyUint8Array {
+  return fixEncoderSize(getBytesEncoder(), 8).encode(CLOSE_GROUP_DISCRIMINATOR);
 }
 
-export type LeaveGroupInstruction<
+export type CloseGroupInstruction<
   TProgram extends string = typeof SAVORA_PROGRAM_ADDRESS,
-  TAccountMember extends string | AccountMeta<string> = string,
+  TAccountCreator extends string | AccountMeta<string> = string,
   TAccountGroup extends string | AccountMeta<string> = string,
   TAccountMint extends string | AccountMeta<string> = string,
-  TAccountMemberToken extends string | AccountMeta<string> = string,
+  TAccountCreatorToken extends string | AccountMeta<string> = string,
   TAccountVault extends string | AccountMeta<string> = string,
   TAccountTokenProgram extends string | AccountMeta<string> =
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
@@ -63,19 +63,19 @@ export type LeaveGroupInstruction<
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
-      TAccountMember extends string
-        ? WritableSignerAccount<TAccountMember> &
-            AccountSignerMeta<TAccountMember>
-        : TAccountMember,
+      TAccountCreator extends string
+        ? WritableSignerAccount<TAccountCreator> &
+            AccountSignerMeta<TAccountCreator>
+        : TAccountCreator,
       TAccountGroup extends string
         ? WritableAccount<TAccountGroup>
         : TAccountGroup,
       TAccountMint extends string
         ? ReadonlyAccount<TAccountMint>
         : TAccountMint,
-      TAccountMemberToken extends string
-        ? WritableAccount<TAccountMemberToken>
-        : TAccountMemberToken,
+      TAccountCreatorToken extends string
+        ? WritableAccount<TAccountCreatorToken>
+        : TAccountCreatorToken,
       TAccountVault extends string
         ? WritableAccount<TAccountVault>
         : TAccountVault,
@@ -86,74 +86,74 @@ export type LeaveGroupInstruction<
     ]
   >;
 
-export type LeaveGroupInstructionData = { discriminator: ReadonlyUint8Array };
+export type CloseGroupInstructionData = { discriminator: ReadonlyUint8Array };
 
-export type LeaveGroupInstructionDataArgs = {};
+export type CloseGroupInstructionDataArgs = {};
 
-export function getLeaveGroupInstructionDataEncoder(): FixedSizeEncoder<LeaveGroupInstructionDataArgs> {
+export function getCloseGroupInstructionDataEncoder(): FixedSizeEncoder<CloseGroupInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([["discriminator", fixEncoderSize(getBytesEncoder(), 8)]]),
-    (value) => ({ ...value, discriminator: LEAVE_GROUP_DISCRIMINATOR }),
+    (value) => ({ ...value, discriminator: CLOSE_GROUP_DISCRIMINATOR }),
   );
 }
 
-export function getLeaveGroupInstructionDataDecoder(): FixedSizeDecoder<LeaveGroupInstructionData> {
+export function getCloseGroupInstructionDataDecoder(): FixedSizeDecoder<CloseGroupInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
   ]);
 }
 
-export function getLeaveGroupInstructionDataCodec(): FixedSizeCodec<
-  LeaveGroupInstructionDataArgs,
-  LeaveGroupInstructionData
+export function getCloseGroupInstructionDataCodec(): FixedSizeCodec<
+  CloseGroupInstructionDataArgs,
+  CloseGroupInstructionData
 > {
   return combineCodec(
-    getLeaveGroupInstructionDataEncoder(),
-    getLeaveGroupInstructionDataDecoder(),
+    getCloseGroupInstructionDataEncoder(),
+    getCloseGroupInstructionDataDecoder(),
   );
 }
 
-export type LeaveGroupAsyncInput<
-  TAccountMember extends string = string,
+export type CloseGroupAsyncInput<
+  TAccountCreator extends string = string,
   TAccountGroup extends string = string,
   TAccountMint extends string = string,
-  TAccountMemberToken extends string = string,
+  TAccountCreatorToken extends string = string,
   TAccountVault extends string = string,
   TAccountTokenProgram extends string = string,
 > = {
-  member: TransactionSigner<TAccountMember>;
+  creator: TransactionSigner<TAccountCreator>;
   group: Address<TAccountGroup>;
   mint: Address<TAccountMint>;
-  memberToken?: Address<TAccountMemberToken>;
+  creatorToken?: Address<TAccountCreatorToken>;
   vault?: Address<TAccountVault>;
   tokenProgram?: Address<TAccountTokenProgram>;
 };
 
-export async function getLeaveGroupInstructionAsync<
-  TAccountMember extends string,
+export async function getCloseGroupInstructionAsync<
+  TAccountCreator extends string,
   TAccountGroup extends string,
   TAccountMint extends string,
-  TAccountMemberToken extends string,
+  TAccountCreatorToken extends string,
   TAccountVault extends string,
   TAccountTokenProgram extends string,
   TProgramAddress extends Address = typeof SAVORA_PROGRAM_ADDRESS,
 >(
-  input: LeaveGroupAsyncInput<
-    TAccountMember,
+  input: CloseGroupAsyncInput<
+    TAccountCreator,
     TAccountGroup,
     TAccountMint,
-    TAccountMemberToken,
+    TAccountCreatorToken,
     TAccountVault,
     TAccountTokenProgram
   >,
   config?: { programAddress?: TProgramAddress },
 ): Promise<
-  LeaveGroupInstruction<
+  CloseGroupInstruction<
     TProgramAddress,
-    TAccountMember,
+    TAccountCreator,
     TAccountGroup,
     TAccountMint,
-    TAccountMemberToken,
+    TAccountCreatorToken,
     TAccountVault,
     TAccountTokenProgram
   >
@@ -163,10 +163,10 @@ export async function getLeaveGroupInstructionAsync<
 
   // Original accounts.
   const originalAccounts = {
-    member: { value: input.member ?? null, isWritable: true },
+    creator: { value: input.creator ?? null, isWritable: true },
     group: { value: input.group ?? null, isWritable: true },
     mint: { value: input.mint ?? null, isWritable: false },
-    memberToken: { value: input.memberToken ?? null, isWritable: true },
+    creatorToken: { value: input.creatorToken ?? null, isWritable: true },
     vault: { value: input.vault ?? null, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
   };
@@ -176,15 +176,15 @@ export async function getLeaveGroupInstructionAsync<
   >;
 
   // Resolve default values.
-  if (!accounts.memberToken.value) {
-    accounts.memberToken.value = await getProgramDerivedAddress({
+  if (!accounts.creatorToken.value) {
+    accounts.creatorToken.value = await getProgramDerivedAddress({
       programAddress:
         "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" as Address<"ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL">,
       seeds: [
         getAddressEncoder().encode(
           getAddressFromResolvedInstructionAccount(
-            "member",
-            accounts.member.value,
+            "creator",
+            accounts.creator.value,
           ),
         ),
         getBytesEncoder().encode(
@@ -232,66 +232,66 @@ export async function getLeaveGroupInstructionAsync<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("member", accounts.member),
+      getAccountMeta("creator", accounts.creator),
       getAccountMeta("group", accounts.group),
       getAccountMeta("mint", accounts.mint),
-      getAccountMeta("memberToken", accounts.memberToken),
+      getAccountMeta("creatorToken", accounts.creatorToken),
       getAccountMeta("vault", accounts.vault),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
     ],
-    data: getLeaveGroupInstructionDataEncoder().encode({}),
+    data: getCloseGroupInstructionDataEncoder().encode({}),
     programAddress,
-  } as LeaveGroupInstruction<
+  } as CloseGroupInstruction<
     TProgramAddress,
-    TAccountMember,
+    TAccountCreator,
     TAccountGroup,
     TAccountMint,
-    TAccountMemberToken,
+    TAccountCreatorToken,
     TAccountVault,
     TAccountTokenProgram
   >);
 }
 
-export type LeaveGroupInput<
-  TAccountMember extends string = string,
+export type CloseGroupInput<
+  TAccountCreator extends string = string,
   TAccountGroup extends string = string,
   TAccountMint extends string = string,
-  TAccountMemberToken extends string = string,
+  TAccountCreatorToken extends string = string,
   TAccountVault extends string = string,
   TAccountTokenProgram extends string = string,
 > = {
-  member: TransactionSigner<TAccountMember>;
+  creator: TransactionSigner<TAccountCreator>;
   group: Address<TAccountGroup>;
   mint: Address<TAccountMint>;
-  memberToken: Address<TAccountMemberToken>;
+  creatorToken: Address<TAccountCreatorToken>;
   vault: Address<TAccountVault>;
   tokenProgram?: Address<TAccountTokenProgram>;
 };
 
-export function getLeaveGroupInstruction<
-  TAccountMember extends string,
+export function getCloseGroupInstruction<
+  TAccountCreator extends string,
   TAccountGroup extends string,
   TAccountMint extends string,
-  TAccountMemberToken extends string,
+  TAccountCreatorToken extends string,
   TAccountVault extends string,
   TAccountTokenProgram extends string,
   TProgramAddress extends Address = typeof SAVORA_PROGRAM_ADDRESS,
 >(
-  input: LeaveGroupInput<
-    TAccountMember,
+  input: CloseGroupInput<
+    TAccountCreator,
     TAccountGroup,
     TAccountMint,
-    TAccountMemberToken,
+    TAccountCreatorToken,
     TAccountVault,
     TAccountTokenProgram
   >,
   config?: { programAddress?: TProgramAddress },
-): LeaveGroupInstruction<
+): CloseGroupInstruction<
   TProgramAddress,
-  TAccountMember,
+  TAccountCreator,
   TAccountGroup,
   TAccountMint,
-  TAccountMemberToken,
+  TAccountCreatorToken,
   TAccountVault,
   TAccountTokenProgram
 > {
@@ -300,10 +300,10 @@ export function getLeaveGroupInstruction<
 
   // Original accounts.
   const originalAccounts = {
-    member: { value: input.member ?? null, isWritable: true },
+    creator: { value: input.creator ?? null, isWritable: true },
     group: { value: input.group ?? null, isWritable: true },
     mint: { value: input.mint ?? null, isWritable: false },
-    memberToken: { value: input.memberToken ?? null, isWritable: true },
+    creatorToken: { value: input.creatorToken ?? null, isWritable: true },
     vault: { value: input.vault ?? null, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
   };
@@ -321,50 +321,50 @@ export function getLeaveGroupInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("member", accounts.member),
+      getAccountMeta("creator", accounts.creator),
       getAccountMeta("group", accounts.group),
       getAccountMeta("mint", accounts.mint),
-      getAccountMeta("memberToken", accounts.memberToken),
+      getAccountMeta("creatorToken", accounts.creatorToken),
       getAccountMeta("vault", accounts.vault),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
     ],
-    data: getLeaveGroupInstructionDataEncoder().encode({}),
+    data: getCloseGroupInstructionDataEncoder().encode({}),
     programAddress,
-  } as LeaveGroupInstruction<
+  } as CloseGroupInstruction<
     TProgramAddress,
-    TAccountMember,
+    TAccountCreator,
     TAccountGroup,
     TAccountMint,
-    TAccountMemberToken,
+    TAccountCreatorToken,
     TAccountVault,
     TAccountTokenProgram
   >);
 }
 
-export type ParsedLeaveGroupInstruction<
+export type ParsedCloseGroupInstruction<
   TProgram extends string = typeof SAVORA_PROGRAM_ADDRESS,
   TAccountMetas extends readonly AccountMeta[] = readonly AccountMeta[],
 > = {
   programAddress: Address<TProgram>;
   accounts: {
-    member: TAccountMetas[0];
+    creator: TAccountMetas[0];
     group: TAccountMetas[1];
     mint: TAccountMetas[2];
-    memberToken: TAccountMetas[3];
+    creatorToken: TAccountMetas[3];
     vault: TAccountMetas[4];
     tokenProgram: TAccountMetas[5];
   };
-  data: LeaveGroupInstructionData;
+  data: CloseGroupInstructionData;
 };
 
-export function parseLeaveGroupInstruction<
+export function parseCloseGroupInstruction<
   TProgram extends string,
   TAccountMetas extends readonly AccountMeta[],
 >(
   instruction: Instruction<TProgram> &
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
-): ParsedLeaveGroupInstruction<TProgram, TAccountMetas> {
+): ParsedCloseGroupInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 6) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
@@ -383,13 +383,13 @@ export function parseLeaveGroupInstruction<
   return {
     programAddress: instruction.programAddress,
     accounts: {
-      member: getNextAccount(),
+      creator: getNextAccount(),
       group: getNextAccount(),
       mint: getNextAccount(),
-      memberToken: getNextAccount(),
+      creatorToken: getNextAccount(),
       vault: getNextAccount(),
       tokenProgram: getNextAccount(),
     },
-    data: getLeaveGroupInstructionDataDecoder().decode(instruction.data),
+    data: getCloseGroupInstructionDataDecoder().decode(instruction.data),
   };
 }

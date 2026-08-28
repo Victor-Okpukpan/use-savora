@@ -1,10 +1,12 @@
 use anchor_lang::prelude::*;
+use anchor_spl::token_interface::{
+    transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
+};
 
 use crate::{
     constants::GROUP_SEED,
     errors::SavoraError,
     state::{Group, GroupStatus},
-    util::recent_slot_hash,
 };
 
 #[derive(Accounts)]
@@ -19,38 +21,68 @@ pub struct JoinGroup<'info> {
     )]
     pub group: Box<Account<'info, Group>>,
 
-    /// CHECK: address-constrained to the SlotHashes sysvar; parsed manually in
-    /// `recent_slot_hash` to seed the rotation shuffle when the roster seals.
-    #[account(address = anchor_lang::solana_program::sysvar::slot_hashes::id())]
-    pub slot_hashes: UncheckedAccount<'info>,
+    #[account(address = group.mint)]
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
+
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = member,
+    )]
+    pub member_token: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = group,
+    )]
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 pub fn handler(ctx: Context<JoinGroup>) -> Result<()> {
-    let group_key = ctx.accounts.group.key();
     let member = ctx.accounts.member.key();
+    let deposit = ctx.accounts.group.deposit;
+
+    {
+        let group = &ctx.accounts.group;
+        require!(
+            group.status == GroupStatus::Forming,
+            SavoraError::GroupNotForming
+        );
+        require!(group.seat_count < group.capacity, SavoraError::GroupFull);
+        require!(!group.is_member(&member), SavoraError::AlreadyMember);
+    }
+
+    // Deposit first, so the roster only grows once the money is in the vault.
+    transfer_checked(
+        CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            TransferChecked {
+                from: ctx.accounts.member_token.to_account_info(),
+                mint: ctx.accounts.mint.to_account_info(),
+                to: ctx.accounts.vault.to_account_info(),
+                authority: ctx.accounts.member.to_account_info(),
+            },
+        ),
+        deposit,
+        ctx.accounts.mint.decimals,
+    )?;
+
     let group = &mut ctx.accounts.group;
-
-    require!(
-        group.status == GroupStatus::Forming,
-        SavoraError::GroupNotForming
-    );
-    require!(
-        group.member_count < group.capacity,
-        SavoraError::GroupFull
-    );
-    require!(!group.is_member(&member), SavoraError::AlreadyMember);
-
-    let idx = group.member_count as usize;
+    let idx = group.seat_count as usize;
     group.members[idx] = member;
-    group.member_count += 1;
+    group.seat_count += 1;
 
-    // Last seat filled: lock the roster, shuffle the rotation, start cycle 0.
-    if group.member_count == group.capacity {
-        let slot_hash = recent_slot_hash(&ctx.accounts.slot_hashes.to_account_info())?;
-        group.seal_rotation(&group_key, &slot_hash);
+    // Last seat filled: lock the roster and go Active at a rotation boundary.
+    // The rotation is built and shuffled by the first `open_cycle` (see
+    // `Group::at_rotation_boundary`), which is also where every later reshuffle
+    // happens — one code path for all of it.
+    if group.seat_count == group.capacity {
         group.status = GroupStatus::Active;
-        group.current_cycle = 0;
-        group.cycle_start = Clock::get()?.unix_timestamp;
+        group.rotation_len = 0;
+        group.rotation_pos = 0;
     }
 
     Ok(())

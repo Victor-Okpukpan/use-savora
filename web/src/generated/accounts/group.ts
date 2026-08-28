@@ -62,62 +62,164 @@ export function getGroupDiscriminatorBytes(): ReadonlyUint8Array {
 export type Group = {
   discriminator: ReadonlyUint8Array;
   bump: number;
-  vaultBump: number;
   creator: Address;
   seed: bigint;
   /** Mint pinned at creation. Every token account is checked against this. */
   mint: Address;
   name: ReadonlyUint8Array;
-  /** Fixed USDC amount each member owes per cycle, in base units. */
+  /** Fixed amount each member owes per cycle, in base units. */
   contribution: bigint;
+  /**
+   * Locked by every member at join, refunded on a clean exit, forfeited on
+   * default. Always `>= contribution`.
+   */
+  deposit: bigint;
   /** Length of one cycle in seconds. */
   cycleSecs: bigint;
-  /** Seats in the circle. Roster seals when `member_count == capacity`. */
+  /**
+   * Extra seconds after the deadline in which a late contribution still
+   * counts and the crank stays blocked (unless already fully funded).
+   */
+  graceSecs: bigint;
+  /** Seats in the circle. Roster seals when `seat_count == capacity`. */
   capacity: number;
-  memberCount: number;
+  /**
+   * High-water mark of assigned member slots. Immutable once `Active`.
+   * NOT the number of people who currently owe or collect — use
+   * `active_count()` for that.
+   */
+  seatCount: number;
+  /**
+   * Slot -> wallet. Slots `>= seat_count` are `Pubkey::default()`.
+   * Immutable once `Active` (ejection tombstones, never compacts).
+   */
   members: Array<Address>;
   /**
-   * Shuffled member indices; `rotation[k]` collects during cycle `k`.
-   * Written once, at seal. Zeroed slots past `member_count` are unused.
+   * `rotation[p]` = member slot that collects at position `p` of the current
+   * rotation. Rebuilt and reshuffled from `live_mask()` at each rotation
+   * boundary in `open_cycle`.
    */
   rotation: ReadonlyUint8Array;
-  /** Permanent per-member counter of missed contributions. */
-  missed: Array<number>;
+  /**
+   * Number of payout positions in the current rotation. Set to
+   * `active_count()` at each boundary; decremented when a not-yet-collected
+   * member is ejected mid-rotation.
+   */
+  rotationLen: number;
+  /**
+   * Position within the current rotation. `rotation_pos == rotation_len`
+   * means the rotation is complete and the next `open_cycle` reshuffles.
+   */
+  rotationPos: number;
+  /**
+   * Total full rotations the members have agreed to. Grows on a sealed
+   * extension.
+   */
+  rotationsTarget: number;
+  /** Completed rotations. Also the current rotation's 0-based index. */
+  rotationsDone: number;
+  /** Rotations in a proposed-but-unsealed extension. `0` unless `Extending`. */
+  pendingRotations: number;
+  /**
+   * Tombstone bitmask over member slots. Bit `i` set = slot `i` is out of
+   * the circle (defaulted, or exited voluntarily).
+   */
+  ejected: number;
+  /** `⊆ ejected`. Bit `i` set = slot `i` was ejected for missing a payment. */
+  defaulted: number;
+  /** Extension opt-ins, bitmask over member slots. Reset on propose/cancel. */
+  optinMask: number;
+  /** Unix time the extension opt-in window closes. */
+  optinDeadline: bigint;
   status: GroupStatus;
-  /** Index of the cycle currently in progress (0-based). */
+  /**
+   * Globally monotonic round counter. Never resets. This is the `Cycle` PDA
+   * seed, so it must stay unique across rotations.
+   */
   currentCycle: number;
-  /** Unix time the current cycle's clock started (seal, or previous payout). */
-  cycleStart: bigint;
+  /** Unix time the current cycle was opened. */
+  openedAt: bigint;
 };
 
 export type GroupArgs = {
   bump: number;
-  vaultBump: number;
   creator: Address;
   seed: number | bigint;
   /** Mint pinned at creation. Every token account is checked against this. */
   mint: Address;
   name: ReadonlyUint8Array;
-  /** Fixed USDC amount each member owes per cycle, in base units. */
+  /** Fixed amount each member owes per cycle, in base units. */
   contribution: number | bigint;
+  /**
+   * Locked by every member at join, refunded on a clean exit, forfeited on
+   * default. Always `>= contribution`.
+   */
+  deposit: number | bigint;
   /** Length of one cycle in seconds. */
   cycleSecs: number | bigint;
-  /** Seats in the circle. Roster seals when `member_count == capacity`. */
+  /**
+   * Extra seconds after the deadline in which a late contribution still
+   * counts and the crank stays blocked (unless already fully funded).
+   */
+  graceSecs: number | bigint;
+  /** Seats in the circle. Roster seals when `seat_count == capacity`. */
   capacity: number;
-  memberCount: number;
+  /**
+   * High-water mark of assigned member slots. Immutable once `Active`.
+   * NOT the number of people who currently owe or collect — use
+   * `active_count()` for that.
+   */
+  seatCount: number;
+  /**
+   * Slot -> wallet. Slots `>= seat_count` are `Pubkey::default()`.
+   * Immutable once `Active` (ejection tombstones, never compacts).
+   */
   members: Array<Address>;
   /**
-   * Shuffled member indices; `rotation[k]` collects during cycle `k`.
-   * Written once, at seal. Zeroed slots past `member_count` are unused.
+   * `rotation[p]` = member slot that collects at position `p` of the current
+   * rotation. Rebuilt and reshuffled from `live_mask()` at each rotation
+   * boundary in `open_cycle`.
    */
   rotation: ReadonlyUint8Array;
-  /** Permanent per-member counter of missed contributions. */
-  missed: Array<number>;
+  /**
+   * Number of payout positions in the current rotation. Set to
+   * `active_count()` at each boundary; decremented when a not-yet-collected
+   * member is ejected mid-rotation.
+   */
+  rotationLen: number;
+  /**
+   * Position within the current rotation. `rotation_pos == rotation_len`
+   * means the rotation is complete and the next `open_cycle` reshuffles.
+   */
+  rotationPos: number;
+  /**
+   * Total full rotations the members have agreed to. Grows on a sealed
+   * extension.
+   */
+  rotationsTarget: number;
+  /** Completed rotations. Also the current rotation's 0-based index. */
+  rotationsDone: number;
+  /** Rotations in a proposed-but-unsealed extension. `0` unless `Extending`. */
+  pendingRotations: number;
+  /**
+   * Tombstone bitmask over member slots. Bit `i` set = slot `i` is out of
+   * the circle (defaulted, or exited voluntarily).
+   */
+  ejected: number;
+  /** `⊆ ejected`. Bit `i` set = slot `i` was ejected for missing a payment. */
+  defaulted: number;
+  /** Extension opt-ins, bitmask over member slots. Reset on propose/cancel. */
+  optinMask: number;
+  /** Unix time the extension opt-in window closes. */
+  optinDeadline: number | bigint;
   status: GroupStatusArgs;
-  /** Index of the cycle currently in progress (0-based). */
+  /**
+   * Globally monotonic round counter. Never resets. This is the `Cycle` PDA
+   * seed, so it must stay unique across rotations.
+   */
   currentCycle: number;
-  /** Unix time the current cycle's clock started (seal, or previous payout). */
-  cycleStart: number | bigint;
+  /** Unix time the current cycle was opened. */
+  openedAt: number | bigint;
 };
 
 /** Gets the encoder for {@link GroupArgs} account data. */
@@ -126,21 +228,30 @@ export function getGroupEncoder(): FixedSizeEncoder<GroupArgs> {
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
       ["bump", getU8Encoder()],
-      ["vaultBump", getU8Encoder()],
       ["creator", getAddressEncoder()],
       ["seed", getU64Encoder()],
       ["mint", getAddressEncoder()],
       ["name", fixEncoderSize(getBytesEncoder(), 32)],
       ["contribution", getU64Encoder()],
+      ["deposit", getU64Encoder()],
       ["cycleSecs", getI64Encoder()],
+      ["graceSecs", getI64Encoder()],
       ["capacity", getU8Encoder()],
-      ["memberCount", getU8Encoder()],
+      ["seatCount", getU8Encoder()],
       ["members", getArrayEncoder(getAddressEncoder(), { size: 12 })],
       ["rotation", fixEncoderSize(getBytesEncoder(), 12)],
-      ["missed", getArrayEncoder(getU16Encoder(), { size: 12 })],
+      ["rotationLen", getU8Encoder()],
+      ["rotationPos", getU8Encoder()],
+      ["rotationsTarget", getU8Encoder()],
+      ["rotationsDone", getU8Encoder()],
+      ["pendingRotations", getU8Encoder()],
+      ["ejected", getU16Encoder()],
+      ["defaulted", getU16Encoder()],
+      ["optinMask", getU16Encoder()],
+      ["optinDeadline", getI64Encoder()],
       ["status", getGroupStatusEncoder()],
-      ["currentCycle", getU8Encoder()],
-      ["cycleStart", getI64Encoder()],
+      ["currentCycle", getU16Encoder()],
+      ["openedAt", getI64Encoder()],
     ]),
     (value) => ({ ...value, discriminator: GROUP_DISCRIMINATOR }),
   );
@@ -151,21 +262,30 @@ export function getGroupDecoder(): FixedSizeDecoder<Group> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["bump", getU8Decoder()],
-    ["vaultBump", getU8Decoder()],
     ["creator", getAddressDecoder()],
     ["seed", getU64Decoder()],
     ["mint", getAddressDecoder()],
     ["name", fixDecoderSize(getBytesDecoder(), 32)],
     ["contribution", getU64Decoder()],
+    ["deposit", getU64Decoder()],
     ["cycleSecs", getI64Decoder()],
+    ["graceSecs", getI64Decoder()],
     ["capacity", getU8Decoder()],
-    ["memberCount", getU8Decoder()],
+    ["seatCount", getU8Decoder()],
     ["members", getArrayDecoder(getAddressDecoder(), { size: 12 })],
     ["rotation", fixDecoderSize(getBytesDecoder(), 12)],
-    ["missed", getArrayDecoder(getU16Decoder(), { size: 12 })],
+    ["rotationLen", getU8Decoder()],
+    ["rotationPos", getU8Decoder()],
+    ["rotationsTarget", getU8Decoder()],
+    ["rotationsDone", getU8Decoder()],
+    ["pendingRotations", getU8Decoder()],
+    ["ejected", getU16Decoder()],
+    ["defaulted", getU16Decoder()],
+    ["optinMask", getU16Decoder()],
+    ["optinDeadline", getI64Decoder()],
     ["status", getGroupStatusDecoder()],
-    ["currentCycle", getU8Decoder()],
-    ["cycleStart", getI64Decoder()],
+    ["currentCycle", getU16Decoder()],
+    ["openedAt", getI64Decoder()],
   ]);
 }
 
@@ -228,5 +348,5 @@ export async function fetchAllMaybeGroup(
 }
 
 export function getGroupSize(): number {
-  return 562;
+  return 573;
 }

@@ -57,34 +57,68 @@ export type Cycle = {
   discriminator: ReadonlyUint8Array;
   bump: number;
   group: Address;
+  /** Global cycle index; the `Cycle` PDA seed. */
   index: number;
+  /** Which rotation this round belongs to (`= group.rotations_done` at open). */
+  rotationIndex: number;
   /** Member slot that collects this cycle: `group.members[recipient_index]`. */
   recipientIndex: number;
+  openedAt: bigint;
+  /** `= opened_at + group.cycle_secs`. */
   deadline: bigint;
-  /** USDC actually gathered in the vault for this cycle, in base units. */
+  /**
+   * Base units gathered for this round: contributions plus any forfeited
+   * deposits credited by the crank.
+   */
   pooled: bigint;
-  /** Bitmask over member slots: bit `i` set means member `i` has contributed. */
+  /**
+   * Bitmask over member slots: bit `i` set = slot `i` has settled this
+   * round. The recipient's bit is pre-set at open (they owe nothing).
+   */
   contributed: number;
-  contributorCount: number;
+  /**
+   * `= group.live_mask()` snapshotted at open — who is on the hook this
+   * round. Frozen for the life of the cycle.
+   */
+  required: number;
+  /** Slots ejected by this round's crank. Audit trail; `⊆ required`. */
+  ejectedHere: number;
   disbursed: boolean;
-  /** Amount actually paid to the recipient (may be short of the full pool). */
+  /** Amount actually paid to the recipient. */
   payout: bigint;
 };
 
 export type CycleArgs = {
   bump: number;
   group: Address;
+  /** Global cycle index; the `Cycle` PDA seed. */
   index: number;
+  /** Which rotation this round belongs to (`= group.rotations_done` at open). */
+  rotationIndex: number;
   /** Member slot that collects this cycle: `group.members[recipient_index]`. */
   recipientIndex: number;
+  openedAt: number | bigint;
+  /** `= opened_at + group.cycle_secs`. */
   deadline: number | bigint;
-  /** USDC actually gathered in the vault for this cycle, in base units. */
+  /**
+   * Base units gathered for this round: contributions plus any forfeited
+   * deposits credited by the crank.
+   */
   pooled: number | bigint;
-  /** Bitmask over member slots: bit `i` set means member `i` has contributed. */
+  /**
+   * Bitmask over member slots: bit `i` set = slot `i` has settled this
+   * round. The recipient's bit is pre-set at open (they owe nothing).
+   */
   contributed: number;
-  contributorCount: number;
+  /**
+   * `= group.live_mask()` snapshotted at open — who is on the hook this
+   * round. Frozen for the life of the cycle.
+   */
+  required: number;
+  /** Slots ejected by this round's crank. Audit trail; `⊆ required`. */
+  ejectedHere: number;
   disbursed: boolean;
-  /** Amount actually paid to the recipient (may be short of the full pool). */
+  /** Amount actually paid to the recipient. */
   payout: number | bigint;
 };
 
@@ -95,12 +129,15 @@ export function getCycleEncoder(): FixedSizeEncoder<CycleArgs> {
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
       ["bump", getU8Encoder()],
       ["group", getAddressEncoder()],
-      ["index", getU8Encoder()],
+      ["index", getU16Encoder()],
+      ["rotationIndex", getU8Encoder()],
       ["recipientIndex", getU8Encoder()],
+      ["openedAt", getI64Encoder()],
       ["deadline", getI64Encoder()],
       ["pooled", getU64Encoder()],
       ["contributed", getU16Encoder()],
-      ["contributorCount", getU8Encoder()],
+      ["required", getU16Encoder()],
+      ["ejectedHere", getU16Encoder()],
       ["disbursed", getBooleanEncoder()],
       ["payout", getU64Encoder()],
     ]),
@@ -114,12 +151,15 @@ export function getCycleDecoder(): FixedSizeDecoder<Cycle> {
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["bump", getU8Decoder()],
     ["group", getAddressDecoder()],
-    ["index", getU8Decoder()],
+    ["index", getU16Decoder()],
+    ["rotationIndex", getU8Decoder()],
     ["recipientIndex", getU8Decoder()],
+    ["openedAt", getI64Decoder()],
     ["deadline", getI64Decoder()],
     ["pooled", getU64Decoder()],
     ["contributed", getU16Decoder()],
-    ["contributorCount", getU8Decoder()],
+    ["required", getU16Decoder()],
+    ["ejectedHere", getU16Decoder()],
     ["disbursed", getBooleanDecoder()],
     ["payout", getU64Decoder()],
   ]);
@@ -184,5 +224,5 @@ export async function fetchAllMaybeCycle(
 }
 
 export function getCycleSize(): number {
-  return 71;
+  return 84;
 }

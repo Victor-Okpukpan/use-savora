@@ -10,8 +10,10 @@ import {
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
+  getAddressEncoder,
   getBytesDecoder,
   getBytesEncoder,
+  getProgramDerivedAddress,
   getStructDecoder,
   getStructEncoder,
   SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
@@ -34,6 +36,7 @@ import {
 } from "@solana/kit";
 import {
   getAccountMetaFactory,
+  getAddressFromResolvedInstructionAccount,
   type ResolvedInstructionAccount,
 } from "@solana/program-client-core";
 import { SAVORA_PROGRAM_ADDRESS } from "../programs";
@@ -50,8 +53,11 @@ export type JoinGroupInstruction<
   TProgram extends string = typeof SAVORA_PROGRAM_ADDRESS,
   TAccountMember extends string | AccountMeta<string> = string,
   TAccountGroup extends string | AccountMeta<string> = string,
-  TAccountSlotHashes extends string | AccountMeta<string> =
-    "SysvarS1otHashes111111111111111111111111111",
+  TAccountMint extends string | AccountMeta<string> = string,
+  TAccountMemberToken extends string | AccountMeta<string> = string,
+  TAccountVault extends string | AccountMeta<string> = string,
+  TAccountTokenProgram extends string | AccountMeta<string> =
+    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -64,9 +70,18 @@ export type JoinGroupInstruction<
       TAccountGroup extends string
         ? WritableAccount<TAccountGroup>
         : TAccountGroup,
-      TAccountSlotHashes extends string
-        ? ReadonlyAccount<TAccountSlotHashes>
-        : TAccountSlotHashes,
+      TAccountMint extends string
+        ? ReadonlyAccount<TAccountMint>
+        : TAccountMint,
+      TAccountMemberToken extends string
+        ? WritableAccount<TAccountMemberToken>
+        : TAccountMemberToken,
+      TAccountVault extends string
+        ? WritableAccount<TAccountVault>
+        : TAccountVault,
+      TAccountTokenProgram extends string
+        ? ReadonlyAccount<TAccountTokenProgram>
+        : TAccountTokenProgram,
       ...TRemainingAccounts,
     ]
   >;
@@ -98,30 +113,50 @@ export function getJoinGroupInstructionDataCodec(): FixedSizeCodec<
   );
 }
 
-export type JoinGroupInput<
+export type JoinGroupAsyncInput<
   TAccountMember extends string = string,
   TAccountGroup extends string = string,
-  TAccountSlotHashes extends string = string,
+  TAccountMint extends string = string,
+  TAccountMemberToken extends string = string,
+  TAccountVault extends string = string,
+  TAccountTokenProgram extends string = string,
 > = {
   member: TransactionSigner<TAccountMember>;
   group: Address<TAccountGroup>;
-  /** `recent_slot_hash` to seed the rotation shuffle when the roster seals. */
-  slotHashes?: Address<TAccountSlotHashes>;
+  mint: Address<TAccountMint>;
+  memberToken?: Address<TAccountMemberToken>;
+  vault?: Address<TAccountVault>;
+  tokenProgram?: Address<TAccountTokenProgram>;
 };
 
-export function getJoinGroupInstruction<
+export async function getJoinGroupInstructionAsync<
   TAccountMember extends string,
   TAccountGroup extends string,
-  TAccountSlotHashes extends string,
+  TAccountMint extends string,
+  TAccountMemberToken extends string,
+  TAccountVault extends string,
+  TAccountTokenProgram extends string,
   TProgramAddress extends Address = typeof SAVORA_PROGRAM_ADDRESS,
 >(
-  input: JoinGroupInput<TAccountMember, TAccountGroup, TAccountSlotHashes>,
+  input: JoinGroupAsyncInput<
+    TAccountMember,
+    TAccountGroup,
+    TAccountMint,
+    TAccountMemberToken,
+    TAccountVault,
+    TAccountTokenProgram
+  >,
   config?: { programAddress?: TProgramAddress },
-): JoinGroupInstruction<
-  TProgramAddress,
-  TAccountMember,
-  TAccountGroup,
-  TAccountSlotHashes
+): Promise<
+  JoinGroupInstruction<
+    TProgramAddress,
+    TAccountMember,
+    TAccountGroup,
+    TAccountMint,
+    TAccountMemberToken,
+    TAccountVault,
+    TAccountTokenProgram
+  >
 > {
   // Program address.
   const programAddress = config?.programAddress ?? SAVORA_PROGRAM_ADDRESS;
@@ -130,7 +165,10 @@ export function getJoinGroupInstruction<
   const originalAccounts = {
     member: { value: input.member ?? null, isWritable: true },
     group: { value: input.group ?? null, isWritable: true },
-    slotHashes: { value: input.slotHashes ?? null, isWritable: false },
+    mint: { value: input.mint ?? null, isWritable: false },
+    memberToken: { value: input.memberToken ?? null, isWritable: true },
+    vault: { value: input.vault ?? null, isWritable: true },
+    tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -138,9 +176,57 @@ export function getJoinGroupInstruction<
   >;
 
   // Resolve default values.
-  if (!accounts.slotHashes.value) {
-    accounts.slotHashes.value =
-      "SysvarS1otHashes111111111111111111111111111" as Address<"SysvarS1otHashes111111111111111111111111111">;
+  if (!accounts.memberToken.value) {
+    accounts.memberToken.value = await getProgramDerivedAddress({
+      programAddress:
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" as Address<"ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL">,
+      seeds: [
+        getAddressEncoder().encode(
+          getAddressFromResolvedInstructionAccount(
+            "member",
+            accounts.member.value,
+          ),
+        ),
+        getBytesEncoder().encode(
+          new Uint8Array([
+            6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235,
+            121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133,
+            126, 255, 0, 169,
+          ]),
+        ),
+        getAddressEncoder().encode(
+          getAddressFromResolvedInstructionAccount("mint", accounts.mint.value),
+        ),
+      ],
+    });
+  }
+  if (!accounts.vault.value) {
+    accounts.vault.value = await getProgramDerivedAddress({
+      programAddress:
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" as Address<"ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL">,
+      seeds: [
+        getAddressEncoder().encode(
+          getAddressFromResolvedInstructionAccount(
+            "group",
+            accounts.group.value,
+          ),
+        ),
+        getBytesEncoder().encode(
+          new Uint8Array([
+            6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235,
+            121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133,
+            126, 255, 0, 169,
+          ]),
+        ),
+        getAddressEncoder().encode(
+          getAddressFromResolvedInstructionAccount("mint", accounts.mint.value),
+        ),
+      ],
+    });
+  }
+  if (!accounts.tokenProgram.value) {
+    accounts.tokenProgram.value =
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
   }
 
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
@@ -148,7 +234,10 @@ export function getJoinGroupInstruction<
     accounts: [
       getAccountMeta("member", accounts.member),
       getAccountMeta("group", accounts.group),
-      getAccountMeta("slotHashes", accounts.slotHashes),
+      getAccountMeta("mint", accounts.mint),
+      getAccountMeta("memberToken", accounts.memberToken),
+      getAccountMeta("vault", accounts.vault),
+      getAccountMeta("tokenProgram", accounts.tokenProgram),
     ],
     data: getJoinGroupInstructionDataEncoder().encode({}),
     programAddress,
@@ -156,7 +245,99 @@ export function getJoinGroupInstruction<
     TProgramAddress,
     TAccountMember,
     TAccountGroup,
-    TAccountSlotHashes
+    TAccountMint,
+    TAccountMemberToken,
+    TAccountVault,
+    TAccountTokenProgram
+  >);
+}
+
+export type JoinGroupInput<
+  TAccountMember extends string = string,
+  TAccountGroup extends string = string,
+  TAccountMint extends string = string,
+  TAccountMemberToken extends string = string,
+  TAccountVault extends string = string,
+  TAccountTokenProgram extends string = string,
+> = {
+  member: TransactionSigner<TAccountMember>;
+  group: Address<TAccountGroup>;
+  mint: Address<TAccountMint>;
+  memberToken: Address<TAccountMemberToken>;
+  vault: Address<TAccountVault>;
+  tokenProgram?: Address<TAccountTokenProgram>;
+};
+
+export function getJoinGroupInstruction<
+  TAccountMember extends string,
+  TAccountGroup extends string,
+  TAccountMint extends string,
+  TAccountMemberToken extends string,
+  TAccountVault extends string,
+  TAccountTokenProgram extends string,
+  TProgramAddress extends Address = typeof SAVORA_PROGRAM_ADDRESS,
+>(
+  input: JoinGroupInput<
+    TAccountMember,
+    TAccountGroup,
+    TAccountMint,
+    TAccountMemberToken,
+    TAccountVault,
+    TAccountTokenProgram
+  >,
+  config?: { programAddress?: TProgramAddress },
+): JoinGroupInstruction<
+  TProgramAddress,
+  TAccountMember,
+  TAccountGroup,
+  TAccountMint,
+  TAccountMemberToken,
+  TAccountVault,
+  TAccountTokenProgram
+> {
+  // Program address.
+  const programAddress = config?.programAddress ?? SAVORA_PROGRAM_ADDRESS;
+
+  // Original accounts.
+  const originalAccounts = {
+    member: { value: input.member ?? null, isWritable: true },
+    group: { value: input.group ?? null, isWritable: true },
+    mint: { value: input.mint ?? null, isWritable: false },
+    memberToken: { value: input.memberToken ?? null, isWritable: true },
+    vault: { value: input.vault ?? null, isWritable: true },
+    tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
+  };
+  const accounts = originalAccounts as Record<
+    keyof typeof originalAccounts,
+    ResolvedInstructionAccount
+  >;
+
+  // Resolve default values.
+  if (!accounts.tokenProgram.value) {
+    accounts.tokenProgram.value =
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
+  }
+
+  const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
+  return Object.freeze({
+    accounts: [
+      getAccountMeta("member", accounts.member),
+      getAccountMeta("group", accounts.group),
+      getAccountMeta("mint", accounts.mint),
+      getAccountMeta("memberToken", accounts.memberToken),
+      getAccountMeta("vault", accounts.vault),
+      getAccountMeta("tokenProgram", accounts.tokenProgram),
+    ],
+    data: getJoinGroupInstructionDataEncoder().encode({}),
+    programAddress,
+  } as JoinGroupInstruction<
+    TProgramAddress,
+    TAccountMember,
+    TAccountGroup,
+    TAccountMint,
+    TAccountMemberToken,
+    TAccountVault,
+    TAccountTokenProgram
   >);
 }
 
@@ -168,8 +349,10 @@ export type ParsedJoinGroupInstruction<
   accounts: {
     member: TAccountMetas[0];
     group: TAccountMetas[1];
-    /** `recent_slot_hash` to seed the rotation shuffle when the roster seals. */
-    slotHashes: TAccountMetas[2];
+    mint: TAccountMetas[2];
+    memberToken: TAccountMetas[3];
+    vault: TAccountMetas[4];
+    tokenProgram: TAccountMetas[5];
   };
   data: JoinGroupInstructionData;
 };
@@ -182,12 +365,12 @@ export function parseJoinGroupInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedJoinGroupInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 3) {
+  if (instruction.accounts.length < 6) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
       {
         actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 3,
+        expectedAccountMetas: 6,
       },
     );
   }
@@ -202,7 +385,10 @@ export function parseJoinGroupInstruction<
     accounts: {
       member: getNextAccount(),
       group: getNextAccount(),
-      slotHashes: getNextAccount(),
+      mint: getNextAccount(),
+      memberToken: getNextAccount(),
+      vault: getNextAccount(),
+      tokenProgram: getNextAccount(),
     },
     data: getJoinGroupInstructionDataDecoder().decode(instruction.data),
   };

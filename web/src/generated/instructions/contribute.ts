@@ -57,6 +57,8 @@ export type ContributeInstruction<
   TAccountMint extends string | AccountMeta<string> = string,
   TAccountMemberToken extends string | AccountMeta<string> = string,
   TAccountVault extends string | AccountMeta<string> = string,
+  TAccountRecipient extends string | AccountMeta<string> = string,
+  TAccountRecipientToken extends string | AccountMeta<string> = string,
   TAccountTokenProgram extends string | AccountMeta<string> =
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
@@ -69,7 +71,7 @@ export type ContributeInstruction<
             AccountSignerMeta<TAccountMember>
         : TAccountMember,
       TAccountGroup extends string
-        ? ReadonlyAccount<TAccountGroup>
+        ? WritableAccount<TAccountGroup>
         : TAccountGroup,
       TAccountCycle extends string
         ? WritableAccount<TAccountCycle>
@@ -83,6 +85,12 @@ export type ContributeInstruction<
       TAccountVault extends string
         ? WritableAccount<TAccountVault>
         : TAccountVault,
+      TAccountRecipient extends string
+        ? ReadonlyAccount<TAccountRecipient>
+        : TAccountRecipient,
+      TAccountRecipientToken extends string
+        ? WritableAccount<TAccountRecipientToken>
+        : TAccountRecipientToken,
       TAccountTokenProgram extends string
         ? ReadonlyAccount<TAccountTokenProgram>
         : TAccountTokenProgram,
@@ -124,6 +132,8 @@ export type ContributeAsyncInput<
   TAccountMint extends string = string,
   TAccountMemberToken extends string = string,
   TAccountVault extends string = string,
+  TAccountRecipient extends string = string,
+  TAccountRecipientToken extends string = string,
   TAccountTokenProgram extends string = string,
 > = {
   member: TransactionSigner<TAccountMember>;
@@ -132,6 +142,13 @@ export type ContributeAsyncInput<
   mint: Address<TAccountMint>;
   memberToken?: Address<TAccountMemberToken>;
   vault?: Address<TAccountVault>;
+  /** inline auto-disburse when this contribution completes the round. */
+  recipient: Address<TAccountRecipient>;
+  /**
+   * transfer; if it does not exist, the auto-disburse is skipped and the
+   * manual crank handles it (creating the ATA there).
+   */
+  recipientToken: Address<TAccountRecipientToken>;
   tokenProgram?: Address<TAccountTokenProgram>;
 };
 
@@ -142,6 +159,8 @@ export async function getContributeInstructionAsync<
   TAccountMint extends string,
   TAccountMemberToken extends string,
   TAccountVault extends string,
+  TAccountRecipient extends string,
+  TAccountRecipientToken extends string,
   TAccountTokenProgram extends string,
   TProgramAddress extends Address = typeof SAVORA_PROGRAM_ADDRESS,
 >(
@@ -152,6 +171,8 @@ export async function getContributeInstructionAsync<
     TAccountMint,
     TAccountMemberToken,
     TAccountVault,
+    TAccountRecipient,
+    TAccountRecipientToken,
     TAccountTokenProgram
   >,
   config?: { programAddress?: TProgramAddress },
@@ -164,6 +185,8 @@ export async function getContributeInstructionAsync<
     TAccountMint,
     TAccountMemberToken,
     TAccountVault,
+    TAccountRecipient,
+    TAccountRecipientToken,
     TAccountTokenProgram
   >
 > {
@@ -173,11 +196,13 @@ export async function getContributeInstructionAsync<
   // Original accounts.
   const originalAccounts = {
     member: { value: input.member ?? null, isWritable: true },
-    group: { value: input.group ?? null, isWritable: false },
+    group: { value: input.group ?? null, isWritable: true },
     cycle: { value: input.cycle ?? null, isWritable: true },
     mint: { value: input.mint ?? null, isWritable: false },
     memberToken: { value: input.memberToken ?? null, isWritable: true },
     vault: { value: input.vault ?? null, isWritable: true },
+    recipient: { value: input.recipient ?? null, isWritable: false },
+    recipientToken: { value: input.recipientToken ?? null, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
@@ -248,6 +273,8 @@ export async function getContributeInstructionAsync<
       getAccountMeta("mint", accounts.mint),
       getAccountMeta("memberToken", accounts.memberToken),
       getAccountMeta("vault", accounts.vault),
+      getAccountMeta("recipient", accounts.recipient),
+      getAccountMeta("recipientToken", accounts.recipientToken),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
     ],
     data: getContributeInstructionDataEncoder().encode({}),
@@ -260,6 +287,8 @@ export async function getContributeInstructionAsync<
     TAccountMint,
     TAccountMemberToken,
     TAccountVault,
+    TAccountRecipient,
+    TAccountRecipientToken,
     TAccountTokenProgram
   >);
 }
@@ -271,6 +300,8 @@ export type ContributeInput<
   TAccountMint extends string = string,
   TAccountMemberToken extends string = string,
   TAccountVault extends string = string,
+  TAccountRecipient extends string = string,
+  TAccountRecipientToken extends string = string,
   TAccountTokenProgram extends string = string,
 > = {
   member: TransactionSigner<TAccountMember>;
@@ -279,6 +310,13 @@ export type ContributeInput<
   mint: Address<TAccountMint>;
   memberToken: Address<TAccountMemberToken>;
   vault: Address<TAccountVault>;
+  /** inline auto-disburse when this contribution completes the round. */
+  recipient: Address<TAccountRecipient>;
+  /**
+   * transfer; if it does not exist, the auto-disburse is skipped and the
+   * manual crank handles it (creating the ATA there).
+   */
+  recipientToken: Address<TAccountRecipientToken>;
   tokenProgram?: Address<TAccountTokenProgram>;
 };
 
@@ -289,6 +327,8 @@ export function getContributeInstruction<
   TAccountMint extends string,
   TAccountMemberToken extends string,
   TAccountVault extends string,
+  TAccountRecipient extends string,
+  TAccountRecipientToken extends string,
   TAccountTokenProgram extends string,
   TProgramAddress extends Address = typeof SAVORA_PROGRAM_ADDRESS,
 >(
@@ -299,6 +339,8 @@ export function getContributeInstruction<
     TAccountMint,
     TAccountMemberToken,
     TAccountVault,
+    TAccountRecipient,
+    TAccountRecipientToken,
     TAccountTokenProgram
   >,
   config?: { programAddress?: TProgramAddress },
@@ -310,6 +352,8 @@ export function getContributeInstruction<
   TAccountMint,
   TAccountMemberToken,
   TAccountVault,
+  TAccountRecipient,
+  TAccountRecipientToken,
   TAccountTokenProgram
 > {
   // Program address.
@@ -318,11 +362,13 @@ export function getContributeInstruction<
   // Original accounts.
   const originalAccounts = {
     member: { value: input.member ?? null, isWritable: true },
-    group: { value: input.group ?? null, isWritable: false },
+    group: { value: input.group ?? null, isWritable: true },
     cycle: { value: input.cycle ?? null, isWritable: true },
     mint: { value: input.mint ?? null, isWritable: false },
     memberToken: { value: input.memberToken ?? null, isWritable: true },
     vault: { value: input.vault ?? null, isWritable: true },
+    recipient: { value: input.recipient ?? null, isWritable: false },
+    recipientToken: { value: input.recipientToken ?? null, isWritable: true },
     tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
@@ -345,6 +391,8 @@ export function getContributeInstruction<
       getAccountMeta("mint", accounts.mint),
       getAccountMeta("memberToken", accounts.memberToken),
       getAccountMeta("vault", accounts.vault),
+      getAccountMeta("recipient", accounts.recipient),
+      getAccountMeta("recipientToken", accounts.recipientToken),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
     ],
     data: getContributeInstructionDataEncoder().encode({}),
@@ -357,6 +405,8 @@ export function getContributeInstruction<
     TAccountMint,
     TAccountMemberToken,
     TAccountVault,
+    TAccountRecipient,
+    TAccountRecipientToken,
     TAccountTokenProgram
   >);
 }
@@ -373,7 +423,14 @@ export type ParsedContributeInstruction<
     mint: TAccountMetas[3];
     memberToken: TAccountMetas[4];
     vault: TAccountMetas[5];
-    tokenProgram: TAccountMetas[6];
+    /** inline auto-disburse when this contribution completes the round. */
+    recipient: TAccountMetas[6];
+    /**
+     * transfer; if it does not exist, the auto-disburse is skipped and the
+     * manual crank handles it (creating the ATA there).
+     */
+    recipientToken: TAccountMetas[7];
+    tokenProgram: TAccountMetas[8];
   };
   data: ContributeInstructionData;
 };
@@ -386,12 +443,12 @@ export function parseContributeInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedContributeInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 7) {
+  if (instruction.accounts.length < 9) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
       {
         actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 7,
+        expectedAccountMetas: 9,
       },
     );
   }
@@ -410,6 +467,8 @@ export function parseContributeInstruction<
       mint: getNextAccount(),
       memberToken: getNextAccount(),
       vault: getNextAccount(),
+      recipient: getNextAccount(),
+      recipientToken: getNextAccount(),
       tokenProgram: getNextAccount(),
     },
     data: getContributeInstructionDataDecoder().decode(instruction.data),

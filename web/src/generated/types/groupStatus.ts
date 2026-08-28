@@ -19,6 +19,8 @@ export enum GroupStatus {
   Forming,
   Active,
   Completed,
+  Extending,
+  Failed,
 }
 
 export type GroupStatusArgs = GroupStatus;

@@ -1,13 +1,24 @@
+pub mod cancel_extension;
+pub mod close_group;
+pub mod close_position;
 pub mod contribute;
 pub mod create_group;
 pub mod disburse_payout;
 pub mod join_group;
 pub mod leave_group;
 pub mod open_cycle;
+pub mod opt_in_extension;
+pub mod propose_extension;
+pub mod shared;
 
+pub use cancel_extension::*;
+pub use close_group::*;
+pub use close_position::*;
 pub use contribute::*;
 pub use create_group::*;
 pub use disburse_payout::*;
 pub use join_group::*;
 pub use leave_group::*;
 pub use open_cycle::*;
+pub use opt_in_extension::*;
+pub use propose_extension::*;

@@ -43,30 +43,50 @@ import {
   type GroupArgs,
 } from "../accounts";
 import {
+  getCancelExtensionInstruction,
+  getCloseGroupInstructionAsync,
+  getClosePositionInstructionAsync,
   getContributeInstructionAsync,
   getCreateGroupInstructionAsync,
   getDisbursePayoutInstructionAsync,
-  getJoinGroupInstruction,
-  getLeaveGroupInstruction,
+  getJoinGroupInstructionAsync,
+  getLeaveGroupInstructionAsync,
   getOpenCycleInstruction,
+  getOptInExtensionInstruction,
+  getProposeExtensionInstruction,
+  parseCancelExtensionInstruction,
+  parseCloseGroupInstruction,
+  parseClosePositionInstruction,
   parseContributeInstruction,
   parseCreateGroupInstruction,
   parseDisbursePayoutInstruction,
   parseJoinGroupInstruction,
   parseLeaveGroupInstruction,
   parseOpenCycleInstruction,
+  parseOptInExtensionInstruction,
+  parseProposeExtensionInstruction,
+  type CancelExtensionInput,
+  type CloseGroupAsyncInput,
+  type ClosePositionAsyncInput,
   type ContributeAsyncInput,
   type CreateGroupAsyncInput,
   type DisbursePayoutAsyncInput,
-  type JoinGroupInput,
-  type LeaveGroupInput,
+  type JoinGroupAsyncInput,
+  type LeaveGroupAsyncInput,
   type OpenCycleInput,
+  type OptInExtensionInput,
+  type ParsedCancelExtensionInstruction,
+  type ParsedCloseGroupInstruction,
+  type ParsedClosePositionInstruction,
   type ParsedContributeInstruction,
   type ParsedCreateGroupInstruction,
   type ParsedDisbursePayoutInstruction,
   type ParsedJoinGroupInstruction,
   type ParsedLeaveGroupInstruction,
   type ParsedOpenCycleInstruction,
+  type ParsedOptInExtensionInstruction,
+  type ParsedProposeExtensionInstruction,
+  type ProposeExtensionInput,
 } from "../instructions";
 import { findGroupPda } from "../pdas";
 
@@ -111,18 +131,56 @@ export function identifySavoraAccount(
 }
 
 export enum SavoraInstruction {
+  CancelExtension,
+  CloseGroup,
+  ClosePosition,
   Contribute,
   CreateGroup,
   DisbursePayout,
   JoinGroup,
   LeaveGroup,
   OpenCycle,
+  OptInExtension,
+  ProposeExtension,
 }
 
 export function identifySavoraInstruction(
   instruction: { data: ReadonlyUint8Array } | ReadonlyUint8Array,
 ): SavoraInstruction {
   const data = "data" in instruction ? instruction.data : instruction;
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([144, 243, 240, 58, 115, 44, 116, 187]),
+      ),
+      0,
+    )
+  ) {
+    return SavoraInstruction.CancelExtension;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([40, 187, 201, 187, 18, 194, 122, 232]),
+      ),
+      0,
+    )
+  ) {
+    return SavoraInstruction.CloseGroup;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([123, 134, 81, 0, 49, 68, 98, 98]),
+      ),
+      0,
+    )
+  ) {
+    return SavoraInstruction.ClosePosition;
+  }
   if (
     containsBytes(
       data,
@@ -189,6 +247,28 @@ export function identifySavoraInstruction(
   ) {
     return SavoraInstruction.OpenCycle;
   }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([238, 48, 27, 241, 149, 207, 27, 17]),
+      ),
+      0,
+    )
+  ) {
+    return SavoraInstruction.OptInExtension;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([52, 87, 195, 193, 21, 191, 104, 79]),
+      ),
+      0,
+    )
+  ) {
+    return SavoraInstruction.ProposeExtension;
+  }
   throw new SolanaError(
     SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_INSTRUCTION,
     { instructionData: data, programName: "savora" },
@@ -198,6 +278,15 @@ export function identifySavoraInstruction(
 export type ParsedSavoraInstruction<
   TProgram extends string = "BbXwxUfyF2xZydVZRhFZ5Fp5KALf9bgYEZvi7b3bhtG2",
 > =
+  | ({
+      instructionType: SavoraInstruction.CancelExtension;
+    } & ParsedCancelExtensionInstruction<TProgram>)
+  | ({
+      instructionType: SavoraInstruction.CloseGroup;
+    } & ParsedCloseGroupInstruction<TProgram>)
+  | ({
+      instructionType: SavoraInstruction.ClosePosition;
+    } & ParsedClosePositionInstruction<TProgram>)
   | ({
       instructionType: SavoraInstruction.Contribute;
     } & ParsedContributeInstruction<TProgram>)
@@ -215,13 +304,40 @@ export type ParsedSavoraInstruction<
     } & ParsedLeaveGroupInstruction<TProgram>)
   | ({
       instructionType: SavoraInstruction.OpenCycle;
-    } & ParsedOpenCycleInstruction<TProgram>);
+    } & ParsedOpenCycleInstruction<TProgram>)
+  | ({
+      instructionType: SavoraInstruction.OptInExtension;
+    } & ParsedOptInExtensionInstruction<TProgram>)
+  | ({
+      instructionType: SavoraInstruction.ProposeExtension;
+    } & ParsedProposeExtensionInstruction<TProgram>);
 
 export function parseSavoraInstruction<TProgram extends string>(
   instruction: Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array>,
 ): ParsedSavoraInstruction<TProgram> {
   const instructionType = identifySavoraInstruction(instruction);
   switch (instructionType) {
+    case SavoraInstruction.CancelExtension: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: SavoraInstruction.CancelExtension,
+        ...parseCancelExtensionInstruction(instruction),
+      };
+    }
+    case SavoraInstruction.CloseGroup: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: SavoraInstruction.CloseGroup,
+        ...parseCloseGroupInstruction(instruction),
+      };
+    }
+    case SavoraInstruction.ClosePosition: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: SavoraInstruction.ClosePosition,
+        ...parseClosePositionInstruction(instruction),
+      };
+    }
     case SavoraInstruction.Contribute: {
       assertIsInstructionWithAccounts(instruction);
       return {
@@ -264,6 +380,20 @@ export function parseSavoraInstruction<TProgram extends string>(
         ...parseOpenCycleInstruction(instruction),
       };
     }
+    case SavoraInstruction.OptInExtension: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: SavoraInstruction.OptInExtension,
+        ...parseOptInExtensionInstruction(instruction),
+      };
+    }
+    case SavoraInstruction.ProposeExtension: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: SavoraInstruction.ProposeExtension,
+        ...parseProposeExtensionInstruction(instruction),
+      };
+    }
     default:
       throw new SolanaError(
         SOLANA_ERROR__PROGRAM_CLIENTS__UNRECOGNIZED_INSTRUCTION_TYPE,
@@ -289,6 +419,18 @@ export type SavoraPluginAccounts = {
 };
 
 export type SavoraPluginInstructions = {
+  cancelExtension: (
+    input: CancelExtensionInput,
+  ) => ReturnType<typeof getCancelExtensionInstruction> &
+    SelfPlanAndSendFunctions;
+  closeGroup: (
+    input: CloseGroupAsyncInput,
+  ) => ReturnType<typeof getCloseGroupInstructionAsync> &
+    SelfPlanAndSendFunctions;
+  closePosition: (
+    input: ClosePositionAsyncInput,
+  ) => ReturnType<typeof getClosePositionInstructionAsync> &
+    SelfPlanAndSendFunctions;
   contribute: (
     input: ContributeAsyncInput,
   ) => ReturnType<typeof getContributeInstructionAsync> &
@@ -302,14 +444,24 @@ export type SavoraPluginInstructions = {
   ) => ReturnType<typeof getDisbursePayoutInstructionAsync> &
     SelfPlanAndSendFunctions;
   joinGroup: (
-    input: JoinGroupInput,
-  ) => ReturnType<typeof getJoinGroupInstruction> & SelfPlanAndSendFunctions;
+    input: JoinGroupAsyncInput,
+  ) => ReturnType<typeof getJoinGroupInstructionAsync> &
+    SelfPlanAndSendFunctions;
   leaveGroup: (
-    input: LeaveGroupInput,
-  ) => ReturnType<typeof getLeaveGroupInstruction> & SelfPlanAndSendFunctions;
+    input: LeaveGroupAsyncInput,
+  ) => ReturnType<typeof getLeaveGroupInstructionAsync> &
+    SelfPlanAndSendFunctions;
   openCycle: (
     input: MakeOptional<OpenCycleInput, "payer">,
   ) => ReturnType<typeof getOpenCycleInstruction> & SelfPlanAndSendFunctions;
+  optInExtension: (
+    input: OptInExtensionInput,
+  ) => ReturnType<typeof getOptInExtensionInstruction> &
+    SelfPlanAndSendFunctions;
+  proposeExtension: (
+    input: ProposeExtensionInput,
+  ) => ReturnType<typeof getProposeExtensionInstruction> &
+    SelfPlanAndSendFunctions;
 };
 
 export type SavoraPluginPdas = { group: typeof findGroupPda };
@@ -332,6 +484,21 @@ export function savoraProgram() {
           group: addSelfFetchFunctions(client, getGroupCodec()),
         },
         instructions: {
+          cancelExtension: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getCancelExtensionInstruction(input),
+            ),
+          closeGroup: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getCloseGroupInstructionAsync(input),
+            ),
+          closePosition: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getClosePositionInstructionAsync(input),
+            ),
           contribute: (input) =>
             addSelfPlanAndSendFunctions(
               client,
@@ -348,11 +515,14 @@ export function savoraProgram() {
               getDisbursePayoutInstructionAsync(input),
             ),
           joinGroup: (input) =>
-            addSelfPlanAndSendFunctions(client, getJoinGroupInstruction(input)),
+            addSelfPlanAndSendFunctions(
+              client,
+              getJoinGroupInstructionAsync(input),
+            ),
           leaveGroup: (input) =>
             addSelfPlanAndSendFunctions(
               client,
-              getLeaveGroupInstruction(input),
+              getLeaveGroupInstructionAsync(input),
             ),
           openCycle: (input) =>
             addSelfPlanAndSendFunctions(
@@ -361,6 +531,16 @@ export function savoraProgram() {
                 ...input,
                 payer: input.payer ?? client.payer,
               }),
+            ),
+          optInExtension: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getOptInExtensionInstruction(input),
+            ),
+          proposeExtension: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getProposeExtensionInstruction(input),
             ),
         },
         pdas: { group: findGroupPda },

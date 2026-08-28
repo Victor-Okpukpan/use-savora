@@ -1,12 +1,13 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
+    token_interface::{Mint, TokenAccount, TokenInterface},
 };
 
 use crate::{
     constants::{CYCLE_SEED, GROUP_SEED},
     errors::SavoraError,
+    instructions::shared::{advance_rotation, compact_rotation_tail, transfer_from_vault},
     state::{Cycle, Group, GroupStatus},
 };
 
@@ -26,7 +27,7 @@ pub struct DisbursePayout<'info> {
 
     #[account(
         mut,
-        seeds = [CYCLE_SEED, group.key().as_ref(), &[cycle.index]],
+        seeds = [CYCLE_SEED, group.key().as_ref(), &cycle.index.to_le_bytes()],
         bump = cycle.bump,
         has_one = group,
     )]
@@ -62,56 +63,64 @@ pub struct DisbursePayout<'info> {
 
 pub fn handler(ctx: Context<DisbursePayout>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
+    let deposit = ctx.accounts.group.deposit;
 
-    {
+    let full = {
         let group = &ctx.accounts.group;
         let cycle = &ctx.accounts.cycle;
-        require!(group.status == GroupStatus::Active, SavoraError::GroupNotActive);
-        require!(!cycle.disbursed, SavoraError::CycleAlreadyDisbursed);
         require!(
-            cycle.contributor_count == group.member_count || now > cycle.deadline,
-            SavoraError::CycleNotReady
+            group.status == GroupStatus::Active,
+            SavoraError::GroupNotActive
         );
+        require!(!cycle.disbursed, SavoraError::CycleAlreadyDisbursed);
+
+        let full = cycle.fully_funded();
+        let grace_over = now
+            > cycle
+                .deadline
+                .checked_add(group.grace_secs)
+                .ok_or(SavoraError::MathOverflow)?;
+        require!(full || grace_over, SavoraError::CycleNotReady);
+        full
+    };
+
+    // Grace has closed with money still missing: eject every no-show, forfeit
+    // their deposit into this round's pot, and drop them from the rotation.
+    if !full {
+        let defaulters = ctx.accounts.cycle.defaulters();
+        let forfeit = deposit
+            .checked_mul(defaulters.count_ones() as u64)
+            .ok_or(SavoraError::MathOverflow)?;
+
+        {
+            let group = &mut ctx.accounts.group;
+            for d in 0..group.seat_count as usize {
+                if defaulters & (1u16 << d) != 0 {
+                    group.ejected |= 1u16 << d;
+                    group.defaulted |= 1u16 << d;
+                }
+            }
+            compact_rotation_tail(group, defaulters);
+        }
+
+        let cycle = &mut ctx.accounts.cycle;
+        cycle.ejected_here = defaulters;
+        cycle.pooled = cycle
+            .pooled
+            .checked_add(forfeit)
+            .ok_or(SavoraError::MathOverflow)?;
     }
 
     let amount = ctx.accounts.cycle.pooled;
-
-    // Move the pool to the rotation-designated recipient, signed by the group PDA.
     if amount > 0 {
-        let creator = ctx.accounts.group.creator;
-        let seed_bytes = ctx.accounts.group.seed.to_le_bytes();
-        let bump = [ctx.accounts.group.bump];
-        let signer_seeds: &[&[&[u8]]] =
-            &[&[GROUP_SEED, creator.as_ref(), &seed_bytes, &bump]];
-
-        transfer_checked(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                TransferChecked {
-                    from: ctx.accounts.vault.to_account_info(),
-                    mint: ctx.accounts.mint.to_account_info(),
-                    to: ctx.accounts.recipient_token.to_account_info(),
-                    authority: ctx.accounts.group.to_account_info(),
-                },
-                signer_seeds,
-            ),
+        transfer_from_vault(
+            &ctx.accounts.token_program,
+            &ctx.accounts.vault,
+            &ctx.accounts.mint,
+            &ctx.accounts.recipient_token.to_account_info(),
+            &ctx.accounts.group,
             amount,
-            ctx.accounts.mint.decimals,
         )?;
-    }
-
-    let member_count = ctx.accounts.group.member_count as usize;
-    let contributed = ctx.accounts.cycle.contributed;
-
-    // Record every no-show against their permanent counter. Enforcement is
-    // social and visible — the rotation itself never stalls.
-    {
-        let group = &mut ctx.accounts.group;
-        for i in 0..member_count {
-            if contributed & (1u16 << i) == 0 {
-                group.missed[i] = group.missed[i].saturating_add(1);
-            }
-        }
     }
 
     {
@@ -119,14 +128,7 @@ pub fn handler(ctx: Context<DisbursePayout>) -> Result<()> {
         cycle.disbursed = true;
         cycle.payout = amount;
     }
-
-    let group = &mut ctx.accounts.group;
-    group.current_cycle += 1;
-    if group.current_cycle == group.member_count {
-        group.status = GroupStatus::Completed;
-    } else {
-        group.cycle_start = now;
-    }
+    advance_rotation(&mut ctx.accounts.group)?;
 
     Ok(())
 }
