@@ -481,13 +481,24 @@ function ActivePanel({
         </Card>
       );
     }
-    // Non-boundary: recipient is known, contribute bundles the open.
+    // Non-boundary: recipient is known. A non-recipient member's contribution
+    // bundles the open; the recipient (who owes nothing) just opens it.
     return (
       <Card className="p-6">
         <RecipientLine view={view} />
         <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
           <PendingBar active={!!busy} />
-          {amMember ? (
+          {amRecipient ? (
+            <>
+              <Button loading={busy === "open"} onClick={onOpen}>
+                Open round {d.rotationPos + 1}
+              </Button>
+              <p className="text-[12px] text-ink-faint">
+                You collect this round — nothing to pay in. Opening it lets the
+                others contribute; the last contribution pays you out.
+              </p>
+            </>
+          ) : amMember ? (
             <Button loading={busy === "contribute"} onClick={onContribute}>
               Contribute {formatUsdc(d.contribution)} USDC
             </Button>
