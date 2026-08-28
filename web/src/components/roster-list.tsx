@@ -99,7 +99,7 @@ export function RosterList({
                 {forming || pos == null ? "·" : pos}
               </span>
 
-              {running && !isPast && !ejected && owesThisRound ? (
+              {running && !isNow && !isPast && !ejected && owesThisRound ? (
                 <span
                   aria-hidden
                   className={`size-1.5 shrink-0 rounded-full ${

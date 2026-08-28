@@ -459,6 +459,8 @@ function ActivePanel({
 }) {
   const { d, cycle, cycleExists, atBoundary, iPaid, funded, crankable, amMember } =
     view;
+  const amRecipient =
+    view.recipientIndex != null && view.recipientIndex === view.myIndex;
 
   // No cycle yet this round.
   if (!cycleExists) {
@@ -540,6 +542,12 @@ function ActivePanel({
           <p className="text-[13px] text-ink-muted">
             You&rsquo;re not in this circle. Anyone can trigger the payout once
             the round is funded or the grace window closes.
+          </p>
+        ) : amRecipient ? (
+          <p className="text-[13px] text-ink-muted">
+            You collect this round — nothing to pay in. Waiting on{" "}
+            {owingCount(cycle!)} contribution
+            {owingCount(cycle!) === 1 ? "" : "s"}; the last one pays you out.
           </p>
         ) : iPaid ? (
           <p className="text-[13px] text-ink-muted">

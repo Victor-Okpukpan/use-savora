@@ -68,10 +68,15 @@ export function computePosition(
     else turnState = "upcoming";
   }
 
+  // Rounds left in this rotation that I actually owe — I pay every remaining
+  // round except the one where I collect.
+  const roundsRemaining = Math.max(0, g.rotationLen - g.rotationPos);
+  const myTurnStillToCome =
+    turnRound != null && turnRound >= g.rotationPos + 1;
   const roundsLeft =
     ejected || g.status !== GroupStatus.Active
       ? 0
-      : Math.max(0, g.rotationLen - g.rotationPos);
+      : Math.max(0, roundsRemaining - (myTurnStillToCome ? 1 : 0));
   const remaining = g.contribution * BigInt(roundsLeft);
 
   return {
