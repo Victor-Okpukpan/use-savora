@@ -29,7 +29,7 @@ import {
   GroupStatus,
   STATUS_LABEL,
   activeCount,
-  isEjected,
+  isDefaulted,
   isFullyFunded,
   isLive,
   owingCount,
@@ -738,11 +738,17 @@ function EndedPanel({
           >
             Withdraw {formatUsdc(d.deposit)} USDC deposit
           </Button>
+        ) : myIndex < 0 ? (
+          <p className="text-[12px] text-ink-faint">
+            You&rsquo;re not a member of this circle.
+          </p>
+        ) : isDefaulted(d, myIndex) ? (
+          <p className="text-[12px] text-ink-faint">
+            You were ejected for missing a round — your deposit was forfeited.
+          </p>
         ) : (
           <p className="text-[12px] text-ink-faint">
-            {isEjected(d, myIndex)
-              ? "You were ejected from this circle; your deposit was forfeited."
-              : "You have nothing to withdraw here."}
+            You withdrew your deposit and left this circle.
           </p>
         )}
 
