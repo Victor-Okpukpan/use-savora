@@ -93,9 +93,14 @@ devnet SOL airdrop button and a link to Circle's USDC faucet.
 
 ## Deploy the web app
 
-See [`web/README.md`](web/README.md). In short: `cd web && vercel`, set the
-three `NEXT_PUBLIC_*` env vars, `vercel --prod`, then whitelist the domain in
-the Privy dashboard.
+Live at <https://usesavora.vercel.app>. See [`web/README.md`](web/README.md) —
+in short: `cd web && vercel`, set the `NEXT_PUBLIC_*` env vars, `vercel --prod`,
+then whitelist the domain in the Privy dashboard.
+
+SEO metadata, `robots.txt`, `sitemap.xml`, the manifest, the favicon, and every
+Open Graph image (including a per-circle card for `/g/<address>` links) are
+generated from code — the mark lives in `web/src/lib/brand.tsx`, the base URL in
+`web/src/lib/site.ts`.
 
 ## Stack
 

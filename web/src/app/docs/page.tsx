@@ -12,10 +12,23 @@ import {
 } from "@/lib/savora/config";
 import { DocNav } from "./nav";
 
+const DOCS_DESCRIPTION =
+  "How Savora works, in plain language and at the protocol level: the vault, the rotation shuffle, the permissionless crank, and what Savora cannot do.";
+
 export const metadata: Metadata = {
-  title: "Docs — Savora",
-  description:
-    "How Savora works, in plain language and at the protocol level: the vault, the rotation shuffle, the permissionless crank, and what Savora cannot do.",
+  title: "Docs",
+  description: DOCS_DESCRIPTION,
+  alternates: { canonical: "/docs" },
+  openGraph: {
+    title: "Docs · Savora",
+    description: DOCS_DESCRIPTION,
+    url: "/docs",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Docs · Savora",
+    description: DOCS_DESCRIPTION,
+  },
 };
 
 const NAV: { heading: string; id: string; items: [string, string][] }[] = [

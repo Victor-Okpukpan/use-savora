@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { RequirePrivy } from "@/components/require-privy";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui";
 import { TabNav } from "./tab-nav";
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+  robots: { index: false, follow: false },
+};
 
 export default function DashboardLayout({
   children,

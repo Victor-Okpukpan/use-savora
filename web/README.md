@@ -15,6 +15,7 @@ Copy `.env.example` to `.env.local` and fill it in:
 NEXT_PUBLIC_PRIVY_APP_ID=                         # dashboard.privy.io (free)
 NEXT_PUBLIC_SOLANA_RPC_URL=                       # a dedicated devnet RPC (Alchemy / Helius / Triton)
 NEXT_PUBLIC_SOLANA_RPC_SUBSCRIPTIONS_URL=         # the same provider's wss:// URL
+NEXT_PUBLIC_SITE_URL=                             # optional — set when a custom domain lands
 ```
 
 The public `https://api.devnet.solana.com` works for light use but rate-limits
@@ -23,6 +24,28 @@ time — restrict the RPC key to your domain in the provider dashboard.
 
 The program ID and devnet USDC mint are compiled in via
 [`src/lib/savora/config.ts`](src/lib/savora/config.ts); no env var for them.
+
+## SEO & brand assets
+
+Metadata, `robots.txt`, `sitemap.xml`, the web manifest, the favicon, the Apple
+icon, and all Open Graph / Twitter images are generated from code:
+
+- **Base URL** — `SITE_URL` in [`src/lib/site.ts`](src/lib/site.ts) resolves
+  `NEXT_PUBLIC_SITE_URL` → Vercel's production URL → `https://usesavora.vercel.app`.
+  One env var moves `metadataBase`, the sitemap, robots, every canonical, and
+  every OG URL.
+- **The mark** — [`src/lib/brand.tsx`](src/lib/brand.tsx) exports `<SavoraMark/>`
+  and the palette. It drives `app/icon.tsx`, `app/apple-icon.tsx`,
+  `app/opengraph-image.tsx`, and the header wordmark. Edit the mark there,
+  nothing else. (The one exception is `public/savora-mark.svg`, Privy's modal
+  logo, which carries its own hardcoded accent hex.)
+- **Social cards** — [`src/lib/og.tsx`](src/lib/og.tsx) holds the shared card
+  layout and `brandCard()`. `/opengraph-image` is the site-wide card;
+  `/g/[address]/opengraph-image` renders a per-circle card (name · contribution ·
+  seats · state) from one RPC read with a ~2.5s timeout, falling back to
+  `brandCard()`. Fonts are the TTF/WOFF files in [`src/fonts/`](src/fonts/).
+- **Private routes** — `/app/*` is disallowed in `robots.txt`; `/g/*` stays
+  crawlable (so link unfurlers read its OG tags) but every page is `noindex`.
 
 ## Commands
 
@@ -58,6 +81,9 @@ vercel --prod                                            # → live URL
 
 Then in the **Privy dashboard** → your app → *Allowed origins*, add the
 deployed URL, or sign-in will fail.
+
+On a custom domain, also `vercel env add NEXT_PUBLIC_SITE_URL production`
+(`https://yourdomain`) so canonicals, the sitemap, and OG URLs point at it.
 
 Redeploys: `vercel --prod`.
 
