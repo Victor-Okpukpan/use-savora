@@ -4,37 +4,37 @@ import { shortAddress } from "@/lib/savora/format";
 import { MemberMark } from "./member-identity";
 
 /**
- * Every round in the rotation, left to right: who collects, and where the
- * circle is now. Answers "when is my turn" at a glance.
+ * Every round in the current rotation, left to right: who collects, and where
+ * the circle is now. Answers "when is my turn" at a glance.
  */
 export function RotationTrack({
   members,
   rotation,
-  memberCount,
-  currentCycle,
-  status,
+  rotationLen,
+  rotationPos,
+  active,
   me,
   labels,
 }: {
   members: string[];
   rotation: ReadonlyUint8Array | number[];
-  memberCount: number;
-  currentCycle: number;
-  status: number; // 0 Forming | 1 Active | 2 Completed
+  rotationLen: number;
+  rotationPos: number;
+  active: boolean;
   me?: string;
   /** Optional display names by member index (demo fixtures). */
   labels?: (string | undefined)[];
 }) {
-  const rounds = Array.from({ length: memberCount }, (_, i) => {
-    const memberIndex = status === 0 ? i : rotation[i];
+  const rounds = Array.from({ length: rotationLen }, (_, i) => {
+    const memberIndex = rotation[i];
     return { round: i, memberIndex, address: members[memberIndex] };
   });
 
   return (
     <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
       {rounds.map(({ round, memberIndex, address }) => {
-        const done = status === 2 || round < currentCycle;
-        const now = status === 1 && round === currentCycle;
+        const done = !active || round < rotationPos;
+        const now = active && round === rotationPos;
         const mine = address === me;
         const label = labels?.[memberIndex] ?? shortAddress(address, 4, 4);
 
@@ -42,9 +42,7 @@ export function RotationTrack({
           <div
             key={round}
             className={`flex min-w-[104px] flex-1 flex-col gap-2 rounded-card border p-3 ${
-              now
-                ? "border-accent/40 bg-accent/4"
-                : "border-line bg-raised"
+              now ? "border-accent/40 bg-accent/4" : "border-line bg-raised"
             }`}
           >
             <div className="flex items-center justify-between">

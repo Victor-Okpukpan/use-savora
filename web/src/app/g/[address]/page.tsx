@@ -16,14 +16,28 @@ import { RequirePrivy } from "@/components/require-privy";
 import { RosterList } from "@/components/roster-list";
 import { RotationTrack } from "@/components/rotation-track";
 import { Button, Card, Fade, PendingBar } from "@/components/ui";
-import { deriveActivity, totalMissed } from "@/lib/savora/activity";
+import { deriveActivity, totalDefaulted } from "@/lib/savora/activity";
 import { DEMO, DEMO_LABELS } from "@/lib/savora/demo";
 import {
   decodeName,
-  formatShortDate,
+  formatCountdown,
   formatUsdc,
   shortAddress,
 } from "@/lib/savora/format";
+import {
+  GroupStatus,
+  STATUS_LABEL,
+  activeCount,
+  isEjected,
+  isFullyFunded,
+  isLive,
+  owingCount,
+  paidCount,
+  roundPhase,
+  roundTarget,
+  seatAddresses,
+  slotOf,
+} from "@/lib/savora/group";
 import {
   useCurrentCycle,
   useCycleHistory,
@@ -33,20 +47,19 @@ import {
 import { computePosition } from "@/lib/savora/position";
 import { useConnection, useSavora } from "@/lib/savora/use-savora";
 
-const STATUS = ["Forming", "Active", "Completed"] as const;
-
 type GroupView = {
   d: Group;
   myIndex: number;
   isMember: boolean;
+  amMember: boolean; // member and still live
   cycle: Cycle | null;
   cycleExists: boolean;
+  atBoundary: boolean;
   iPaid: boolean;
   funded: boolean;
-  pastDeadline: boolean;
   crankable: boolean;
-  recipient: Address;
-  recipientIndex: number;
+  recipient: Address | null;
+  recipientIndex: number | null;
 };
 
 export default function GroupPage() {
@@ -69,7 +82,7 @@ function GroupDetail() {
   const cycleQ = useCurrentCycle(group);
   const historyQ = useCycleHistory(group);
   const savora = useSavora();
-  const nowSec = useNow();
+  const nowSec = useNow(1000);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -98,34 +111,45 @@ function GroupDetail() {
   const view = useMemo<GroupView | null>(() => {
     if (!group || !me) return null;
     const d = group.data;
-    const myIndex = d.members.slice(0, d.memberCount).indexOf(me as never);
+    const myIndex = slotOf(d, me);
     const isMember = myIndex >= 0;
+    const amMember = isMember && isLive(d, myIndex);
     const cycle = cycleQ.data?.data ?? null;
     const cycleExists = !!cycleQ.data;
-    const iPaid = cycle ? (cycle.contributed & (1 << myIndex)) !== 0 : false;
-    const funded = cycle ? cycle.contributorCount === d.memberCount : false;
-    const pastDeadline = cycle ? nowSec > Number(cycle.deadline) : false;
+    const atBoundary = d.rotationPos >= d.rotationLen;
+
+    const iPaid =
+      cycle && myIndex >= 0
+        ? (cycle.contributed & (1 << myIndex)) !== 0
+        : false;
+    const funded = cycle ? isFullyFunded(cycle) : false;
+    const phase = roundPhase(d, cycle, nowSec);
     const crankable =
-      d.status === 1 &&
+      d.status === GroupStatus.Active &&
       cycle != null &&
       !cycle.disbursed &&
-      (funded || pastDeadline);
-    const recipientIndex = cycle
-      ? cycle.recipientIndex
-      : d.status === 1
-        ? d.rotation[d.currentCycle]
-        : 0;
+      phase.kind === "payable";
+
+    let recipientIndex: number | null = null;
+    if (cycle) recipientIndex = cycle.recipientIndex;
+    else if (d.status === GroupStatus.Active && !atBoundary)
+      recipientIndex = d.rotation[d.rotationPos];
+
     return {
       d,
       myIndex,
       isMember,
+      amMember,
       cycle,
       cycleExists,
+      atBoundary,
       iPaid,
       funded,
-      pastDeadline,
       crankable,
-      recipient: d.members[recipientIndex] as Address,
+      recipient:
+        recipientIndex != null
+          ? (d.members[recipientIndex] as Address)
+          : null,
       recipientIndex,
     };
   }, [group, me, cycleQ.data, nowSec]);
@@ -161,9 +185,9 @@ function GroupDetail() {
   if (!view) return null;
 
   const d = view.d;
-  const members = d.members.slice(0, d.memberCount) as Address[];
-  const target = d.contribution * BigInt(d.memberCount);
-  const missed = totalMissed(group);
+  const members = seatAddresses(d);
+  const defaulted = totalDefaulted(group);
+  const running = d.status === GroupStatus.Active;
 
   return (
     <Fade className="flex flex-col gap-8">
@@ -173,48 +197,91 @@ function GroupDetail() {
             {decodeName(d.name) || "Untitled circle"}
           </h1>
           <span className="rounded-pill border border-line px-2 py-0.5 text-[11px] text-ink-muted">
-            {STATUS[d.status]}
+            {STATUS_LABEL[d.status]}
           </span>
         </div>
         <p className="tnum mt-2 text-[13px] text-ink-muted">
-          {formatUsdc(d.contribution)} USDC per round · {d.memberCount}/
-          {d.capacity} seats
-          {d.status === 1
-            ? ` · round ${d.currentCycle + 1} of ${d.memberCount}`
+          {formatUsdc(d.contribution)} USDC per round · {d.seatCount}/{d.capacity}{" "}
+          seats · {formatUsdc(d.deposit)} deposit
+          {running
+            ? d.rotationsTarget > 1
+              ? ` · rotation ${d.rotationsDone + 1}/${d.rotationsTarget}, round ${d.rotationPos + 1}`
+              : ` · round ${d.rotationPos + 1} of ${d.rotationLen || d.seatCount}`
             : ""}
-          {missed > 0 ? ` · ${missed} missed contribution${missed === 1 ? "" : "s"}` : ""}
+          {defaulted > 0
+            ? ` · ${defaulted} ejected for missing a round`
+            : ""}
         </p>
       </header>
 
-      {view.isMember && position ? <PositionSummary position={position} /> : null}
+      {view.isMember && position ? (
+        <PositionSummary position={position} />
+      ) : null}
 
-      {d.status === 0 ? (
+      {d.status === GroupStatus.Forming ? (
         <FormingPanel
           groupAddress={groupAddress}
-          seatsLeft={d.capacity - d.memberCount}
+          seatsLeft={d.capacity - d.seatCount}
+          deposit={d.deposit}
+          contribution={d.contribution}
           isMember={view.isMember}
           isCreator={view.myIndex === 0}
           busy={busy}
           onJoin={() => act("join", () => savora.joinGroup(groupAddress))}
           onLeave={() => act("leave", () => savora.leaveGroup(groupAddress))}
+          onClose={() =>
+            act("close", () => savora.closeGroup(groupAddress))
+          }
         />
-      ) : (
+      ) : d.status === GroupStatus.Active ? (
         <ActivePanel
           view={view}
-          target={target}
+          nowSec={nowSec}
           busy={busy}
+          onOpen={() =>
+            act("open", () => savora.openCycle(groupAddress, d.currentCycle))
+          }
           onContribute={() =>
             act("contribute", () =>
               savora.contribute(
                 groupAddress,
                 d.currentCycle,
+                view.recipient!,
                 !view.cycleExists,
               ),
             )
           }
           onCrank={() =>
             act("crank", () =>
-              savora.disburse(groupAddress, d.currentCycle, view.recipient),
+              savora.disburse(groupAddress, d.currentCycle, view.recipient!),
+            )
+          }
+        />
+      ) : d.status === GroupStatus.Extending ? (
+        <ExtendingPanel
+          view={view}
+          nowSec={nowSec}
+          busy={busy}
+          onOptIn={() =>
+            act("optin", () => savora.optInExtension(groupAddress))
+          }
+          onDecline={() =>
+            act("decline", () => savora.closePosition(groupAddress))
+          }
+          onCancel={() =>
+            act("cancel", () => savora.cancelExtension(groupAddress))
+          }
+        />
+      ) : (
+        <EndedPanel
+          view={view}
+          busy={busy}
+          onWithdraw={() =>
+            act("withdraw", () => savora.closePosition(groupAddress))
+          }
+          onPropose={(rot, secs) =>
+            act("propose", () =>
+              savora.proposeExtension(groupAddress, rot, secs),
             )
           }
         />
@@ -222,15 +289,15 @@ function GroupDetail() {
 
       {error ? <p className="text-[12px] text-danger">{error}</p> : null}
 
-      {d.status !== 0 ? (
+      {d.status !== GroupStatus.Forming && d.rotationLen > 0 ? (
         <section>
-          <h2 className="micro mb-2.5">Rotation</h2>
+          <h2 className="micro mb-2.5">This rotation</h2>
           <RotationTrack
             members={members}
             rotation={d.rotation}
-            memberCount={d.memberCount}
-            currentCycle={d.currentCycle}
-            status={d.status}
+            rotationLen={d.rotationLen}
+            rotationPos={d.rotationPos}
+            active={running}
             me={me!}
             labels={labels}
           />
@@ -238,14 +305,10 @@ function GroupDetail() {
       ) : null}
 
       <RosterList
-        members={members}
-        rotation={d.rotation}
-        missed={d.missed}
-        memberCount={d.memberCount}
-        status={d.status}
-        currentCycle={d.currentCycle}
+        group={d}
         me={me!}
         contributedMask={view.cycle?.contributed ?? 0}
+        requiredMask={view.cycle?.required ?? 0}
         labels={labels}
         editableNicknames={!DEMO}
       />
@@ -268,22 +331,30 @@ function GroupDetail() {
   );
 }
 
+/* ---------------- Forming ---------------- */
+
 function FormingPanel({
   groupAddress,
   seatsLeft,
+  deposit,
+  contribution,
   isMember,
   isCreator,
   busy,
   onJoin,
   onLeave,
+  onClose,
 }: {
   groupAddress: string;
   seatsLeft: number;
+  deposit: bigint;
+  contribution: bigint;
   isMember: boolean;
   isCreator: boolean;
   busy: string | null;
   onJoin: () => void;
   onLeave: () => void;
+  onClose: () => void;
 }) {
   return (
     <Card className="p-6">
@@ -300,132 +371,369 @@ function FormingPanel({
         <InviteLink groupAddress={groupAddress} />
 
         <PendingBar active={!!busy} />
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {!isMember ? (
             <Button
               loading={busy === "join"}
               disabled={seatsLeft === 0}
               onClick={onJoin}
             >
-              Join this circle
+              Join · lock {formatUsdc(deposit)} USDC deposit
             </Button>
           ) : isCreator ? (
             <span className="text-[13px] text-ink-muted">
-              You started this circle. It begins automatically when the last seat
-              fills.
+              You started this circle. It begins automatically when the last
+              seat fills. If nobody joins, you can close it and get your deposit
+              back.
             </span>
           ) : (
             <Button variant="danger" loading={busy === "leave"} onClick={onLeave}>
-              Leave
+              Leave · refund deposit
             </Button>
           )}
+          {isCreator && seatsLeft === Math.max(0, seatsLeft) && isMember ? (
+            <Button
+              variant="secondary"
+              loading={busy === "close"}
+              onClick={onClose}
+            >
+              Close circle
+            </Button>
+          ) : null}
         </div>
 
         <p className="border-t border-line pt-4 text-[12px] leading-[1.7] text-ink-faint">
-          When the last seat fills, the collection order is shuffled onchain and
-          fixed for good — no one picks it. A block producer controlling the exact
-          sealing moment could bias the shuffle; for a circle of people who know
-          each other, that&rsquo;s a trade we make openly.
+          Joining locks a {formatUsdc(deposit)} USDC deposit plus your first{" "}
+          {formatUsdc(contribution)} USDC contribution. The deposit is refunded
+          when the circle completes and you withdraw — it&rsquo;s forfeited only
+          if you miss a round. When the last seat fills, the collection order is
+          shuffled onchain and no one picks it.
         </p>
       </div>
     </Card>
   );
 }
 
+/* ---------------- Active ---------------- */
+
 function ActivePanel({
   view,
-  target,
+  nowSec,
   busy,
+  onOpen,
   onContribute,
   onCrank,
 }: {
   view: GroupView;
-  target: bigint;
+  nowSec: number;
   busy: string | null;
+  onOpen: () => void;
   onContribute: () => void;
   onCrank: () => void;
 }) {
-  const { d, cycle, iPaid, funded, crankable, isMember } = view;
+  const { d, cycle, cycleExists, atBoundary, iPaid, funded, crankable, amMember } =
+    view;
 
-  if (d.status === 2) {
+  // No cycle yet this round.
+  if (!cycleExists) {
+    if (atBoundary) {
+      return (
+        <Card className="p-6">
+          <p className="text-[13px] text-ink-muted">
+            Round {d.rotationPos + 1} of {d.rotationLen || d.seatCount} hasn&rsquo;t
+            opened yet. Opening it shuffles the collection order for this
+            rotation.
+          </p>
+          <div className="mt-4 flex flex-col gap-3">
+            <PendingBar active={!!busy} />
+            <Button loading={busy === "open"} onClick={onOpen}>
+              Open round {d.rotationPos + 1}
+            </Button>
+          </div>
+        </Card>
+      );
+    }
+    // Non-boundary: recipient is known, contribute bundles the open.
     return (
       <Card className="p-6">
-        <p className="text-[13px] text-ink-muted">
-          Every member has collected. This circle is complete.
-        </p>
+        <RecipientLine view={view} />
+        <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
+          <PendingBar active={!!busy} />
+          {amMember ? (
+            <Button loading={busy === "contribute"} onClick={onContribute}>
+              Contribute {formatUsdc(d.contribution)} USDC
+            </Button>
+          ) : (
+            <p className="text-[13px] text-ink-muted">
+              This round hasn&rsquo;t opened. Any member can start it by
+              contributing.
+            </p>
+          )}
+        </div>
       </Card>
     );
   }
 
-  const paidCount = cycle?.contributorCount ?? 0;
-  const recipient = d.members[view.recipientIndex];
+  const phase = roundPhase(d, cycle, nowSec);
+  const paid = cycle ? paidCount(cycle) : 0;
+  const need = activeCount(d) - 1;
 
   return (
     <Card className="p-6">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-4">
-        <span className="text-[13px]">
-          <span className="text-ink-muted">Collecting this round · </span>
-          <span className="addr font-medium text-ink">
-            {view.recipientIndex === view.myIndex
-              ? "you"
-              : shortAddress(recipient)}
-          </span>
-        </span>
-        {cycle ? (
-          <span className="tnum text-[12px] text-ink-muted">
-            deadline {formatShortDate(cycle.deadline)}
-          </span>
-        ) : null}
+        <RecipientLine view={view} />
+        <PhaseTag phase={phase} nowSec={nowSec} />
       </div>
 
       <div className="pt-5">
         <PoolMeter
           pooled={cycle?.pooled ?? 0n}
-          target={target}
-          paidCount={paidCount}
-          memberCount={d.memberCount}
+          target={roundTarget(d)}
+          paidCount={paid}
+          need={need}
         />
       </div>
 
       <div className="mt-5 flex flex-col gap-3 border-t border-line pt-5">
         <PendingBar active={!!busy} />
-        {!isMember ? (
-          crankable ? (
-            <Button loading={busy === "crank"} onClick={onCrank}>
-              Send this round&rsquo;s payout
-            </Button>
-          ) : (
-            <p className="text-[13px] text-ink-muted">
-              You&rsquo;re not in this circle. Anyone can trigger the payout once
-              the round is funded.
-            </p>
-          )
-        ) : crankable ? (
+        {crankable ? (
           <>
             <Button loading={busy === "crank"} onClick={onCrank}>
               {funded
                 ? "Round is funded — send the payout"
-                : "Deadline passed — pay out what’s in"}
+                : "Grace over — pay out and eject no-shows"}
             </Button>
-            {!iPaid ? (
-              <button
-                onClick={onContribute}
-                className="text-[12px] text-ink-muted underline-offset-2 hover:underline"
-              >
-                or contribute your share first
-              </button>
+            {amMember && !iPaid ? (
+              <p className="text-[12px] text-warning">
+                You haven&rsquo;t contributed. Cranking now ejects you and
+                forfeits your deposit.
+              </p>
             ) : null}
           </>
+        ) : !amMember ? (
+          <p className="text-[13px] text-ink-muted">
+            You&rsquo;re not in this circle. Anyone can trigger the payout once
+            the round is funded or the grace window closes.
+          </p>
         ) : iPaid ? (
           <p className="text-[13px] text-ink-muted">
-            You&rsquo;ve paid this round. Waiting on {d.memberCount - paidCount}{" "}
-            more.
+            You&rsquo;ve paid this round. Waiting on {owingCount(cycle!)} more.
           </p>
         ) : (
           <Button loading={busy === "contribute"} onClick={onContribute}>
             Contribute {formatUsdc(d.contribution)} USDC
           </Button>
         )}
+      </div>
+    </Card>
+  );
+}
+
+function RecipientLine({ view }: { view: GroupView }) {
+  const { recipientIndex, myIndex } = view;
+  return (
+    <span className="text-[13px]">
+      <span className="text-ink-muted">Collecting this round · </span>
+      <span className="addr font-medium text-ink">
+        {recipientIndex == null
+          ? "set when the round opens"
+          : recipientIndex === myIndex
+            ? "you"
+            : shortAddress(view.d.members[recipientIndex])}
+      </span>
+    </span>
+  );
+}
+
+function PhaseTag({
+  phase,
+  nowSec,
+}: {
+  phase: ReturnType<typeof roundPhase>;
+  nowSec: number;
+}) {
+  if (phase.kind === "open")
+    return (
+      <span className="tnum text-[12px] text-ink-muted">
+        closes in {formatCountdown(phase.deadline, nowSec)}
+      </span>
+    );
+  if (phase.kind === "grace")
+    return (
+      <span className="tnum text-[12px] text-warning">
+        grace · {formatCountdown(phase.graceEnd, nowSec)} left to pay
+      </span>
+    );
+  if (phase.kind === "payable")
+    return <span className="text-[12px] font-medium text-accent">payable</span>;
+  return null;
+}
+
+/* ---------------- Extending ---------------- */
+
+function ExtendingPanel({
+  view,
+  nowSec,
+  busy,
+  onOptIn,
+  onDecline,
+  onCancel,
+}: {
+  view: GroupView;
+  nowSec: number;
+  busy: string | null;
+  onOptIn: () => void;
+  onDecline: () => void;
+  onCancel: () => void;
+}) {
+  const { d, myIndex, amMember } = view;
+  const optedIn = myIndex >= 0 && (d.optinMask & (1 << myIndex)) !== 0;
+  const isCreator = myIndex === 0;
+  const yes = (() => {
+    let c = 0;
+    for (let i = 0; i < d.seatCount; i++)
+      if (isLive(d, i) && d.optinMask & (1 << i)) c++;
+    return c;
+  })();
+
+  return (
+    <Card className="p-6">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-baseline justify-between">
+          <span className="text-[13px] font-medium text-ink">
+            Extension proposed · +{d.pendingRotations} rotation
+            {d.pendingRotations === 1 ? "" : "s"}
+          </span>
+          <span className="tnum text-[12px] text-ink-muted">
+            {yes}/{activeCount(d)} in ·{" "}
+            {formatCountdown(d.optinDeadline, nowSec)} left
+          </span>
+        </div>
+        <p className="text-[12px] leading-[1.7] text-ink-faint">
+          Every member has to agree. Opting in keeps your deposit in and commits
+          you to another full rotation. Declining withdraws your deposit and
+          ends your membership — permanently.
+        </p>
+
+        <PendingBar active={!!busy} />
+        <div className="flex flex-wrap gap-2">
+          {amMember && !optedIn ? (
+            <>
+              <Button loading={busy === "optin"} onClick={onOptIn}>
+                Opt in
+              </Button>
+              <Button
+                variant="danger"
+                loading={busy === "decline"}
+                onClick={onDecline}
+              >
+                Decline · withdraw deposit
+              </Button>
+            </>
+          ) : optedIn ? (
+            <span className="text-[13px] text-ink-muted">
+              You&rsquo;ve opted in. Waiting on the rest.
+            </span>
+          ) : (
+            <span className="text-[13px] text-ink-muted">
+              You&rsquo;re not an active member of this circle.
+            </span>
+          )}
+          {(isCreator || nowSec > Number(d.optinDeadline)) && (
+            <Button
+              variant="secondary"
+              loading={busy === "cancel"}
+              onClick={onCancel}
+            >
+              {isCreator ? "Cancel proposal" : "Clear stale proposal"}
+            </Button>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/* ---------------- Completed / Failed ---------------- */
+
+function EndedPanel({
+  view,
+  busy,
+  onWithdraw,
+  onPropose,
+}: {
+  view: GroupView;
+  busy: string | null;
+  onWithdraw: () => void;
+  onPropose: (rotations: number, optinSecs: bigint) => void;
+}) {
+  const { d, myIndex, amMember } = view;
+  const failed = d.status === GroupStatus.Failed;
+  const isCreator = myIndex === 0;
+  const [rot, setRot] = useState(1);
+
+  return (
+    <Card className="p-6">
+      <div className="flex flex-col gap-4">
+        <p className="text-[13px] text-ink-muted">
+          {failed
+            ? "This circle collapsed — too few active members to continue. Withdraw any deposit you still have in."
+            : d.rotationsDone > 1
+              ? `All ${d.rotationsDone} rotations are complete.`
+              : "Every member has collected. This circle is complete."}
+        </p>
+
+        <PendingBar active={!!busy} />
+
+        {amMember ? (
+          <Button
+            variant={failed ? "primary" : "secondary"}
+            loading={busy === "withdraw"}
+            onClick={onWithdraw}
+          >
+            Withdraw {formatUsdc(d.deposit)} USDC deposit
+          </Button>
+        ) : (
+          <p className="text-[12px] text-ink-faint">
+            {isEjected(d, myIndex)
+              ? "You were ejected from this circle; your deposit was forfeited."
+              : "You have nothing to withdraw here."}
+          </p>
+        )}
+
+        {!failed && isCreator && amMember ? (
+          <div className="flex flex-col gap-2 border-t border-line pt-4">
+            <span className="micro">Run it again</span>
+            <p className="text-[12px] leading-[1.6] text-ink-faint">
+              Propose more rotations. It only starts once every member opts in.
+              Withdrawing your deposit first would forfeit your ability to
+              propose.
+            </p>
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1.5">
+                {[1, 2, 3].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setRot(n)}
+                    className={`tnum h-9 w-9 rounded-control border text-[13px] ${
+                      rot === n
+                        ? "border-accent bg-accent text-accent-contrast"
+                        : "border-line bg-surface text-ink-muted hover:bg-surface-sunk"
+                    }`}
+                  >
+                    +{n}
+                  </button>
+                ))}
+              </div>
+              <Button
+                loading={busy === "propose"}
+                onClick={() => onPropose(rot, 259_200n)}
+              >
+                Propose extension
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </Card>
   );

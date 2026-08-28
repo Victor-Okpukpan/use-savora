@@ -77,17 +77,39 @@ export function formatShortDate(unixSeconds: number | bigint): string {
 }
 
 /**
- * Position (1-based) each member holds in the rotation.
- * `rotation[k]` is the member slot that collects in cycle `k`, so member `m`
- * collects in the cycle where `rotation[cycle] === m`.
+ * Unix seconds → local date + time, "Aug 31, 2:15 PM". Explicit locale so
+ * server and client agree.
  */
-export function rotationPosition(
-  rotation: ReadonlyUint8Array | Uint8Array | number[],
-  memberIndex: number,
-  memberCount: number,
-): number | null {
-  for (let cycle = 0; cycle < memberCount; cycle++) {
-    if (rotation[cycle] === memberIndex) return cycle + 1;
-  }
-  return null;
+export function formatDateTime(unixSeconds: number | bigint): string {
+  return new Date(Number(unixSeconds) * 1000).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * A span of seconds → a short human string: "4d 6h", "12m", "45s", "now".
+ * At most two units. Negative or zero → "now".
+ */
+export function formatDuration(seconds: number): string {
+  const s = Math.floor(seconds);
+  if (s <= 0) return "now";
+  const d = Math.floor(s / 86_400);
+  const h = Math.floor((s % 86_400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (d > 0) return h > 0 ? `${d}d ${h}h` : `${d}d`;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (m > 0) return sec > 0 ? `${m}m ${sec}s` : `${m}m`;
+  return `${sec}s`;
+}
+
+/** Seconds until `targetUnix` from `nowUnix`, formatted; "now" once elapsed. */
+export function formatCountdown(
+  targetUnix: number | bigint,
+  nowUnix: number,
+): string {
+  return formatDuration(Number(targetUnix) - nowUnix);
 }

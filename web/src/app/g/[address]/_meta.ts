@@ -21,20 +21,25 @@ export type CircleMeta = {
 function toMeta(g: GroupAccount): CircleMeta {
   const d = g.data;
   const name = decodeName(d.name) || "A savings circle";
+  const seatsLeft = d.capacity - d.seatCount;
   const state =
     d.status === 0
-      ? d.capacity - d.memberCount > 0
-        ? `Forming · ${d.capacity - d.memberCount} left`
+      ? seatsLeft > 0
+        ? `Forming · ${seatsLeft} left`
         : "Forming"
       : d.status === 2
         ? "Completed"
-        : `Round ${d.currentCycle + 1} of ${d.memberCount}`;
+        : d.status === 4
+          ? "Ended"
+          : d.rotationsTarget > 1
+            ? `Rotation ${d.rotationsDone + 1} of ${d.rotationsTarget}, round ${d.rotationPos + 1}`
+            : `Round ${d.rotationPos + 1} of ${d.rotationLen || d.seatCount}`;
   return {
     name,
     contribution: formatUsdc(d.contribution),
-    seats: `${d.memberCount}/${d.capacity}`,
+    seats: `${d.seatCount}/${d.capacity}`,
     state,
-    memberCount: d.memberCount,
+    memberCount: d.seatCount,
     capacity: d.capacity,
   };
 }

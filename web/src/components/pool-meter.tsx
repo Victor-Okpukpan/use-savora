@@ -8,19 +8,19 @@ export function PoolMeter({
   pooled,
   target,
   paidCount,
-  memberCount,
+  need,
   short = false,
 }: {
   pooled: bigint;
   target: bigint;
   paidCount: number;
-  memberCount: number;
+  /** How many members must contribute this round (recipient excluded). */
+  need: number;
   short?: boolean;
 }) {
   const pct =
-    target > 0n
-      ? Math.min(100, Number((pooled * 10000n) / target) / 100)
-      : 0;
+    target > 0n ? Math.min(100, Number((pooled * 10000n) / target) / 100) : 0;
+  const dots = Math.max(0, need);
 
   return (
     <div className="flex flex-col gap-2">
@@ -45,7 +45,7 @@ export function PoolMeter({
 
       <div className="flex items-center gap-2">
         <div className="flex gap-1">
-          {Array.from({ length: memberCount }, (_, i) => (
+          {Array.from({ length: dots }, (_, i) => (
             <span
               key={i}
               className={`h-1.5 w-1.5 rounded-full ${
@@ -55,7 +55,7 @@ export function PoolMeter({
           ))}
         </div>
         <span className="tnum text-[12px] text-ink-muted">
-          {paidCount} of {memberCount} paid
+          {paidCount} of {dots} paid
         </span>
       </div>
     </div>

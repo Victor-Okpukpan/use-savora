@@ -2,18 +2,25 @@
 
 import Link from "next/link";
 
-import type { Address } from "@solana/kit";
-
 import { MemberMark } from "@/components/member-identity";
 import { Button, Card, Fade } from "@/components/ui";
 import { ConnectGate } from "@/components/shell";
-import { decodeName, formatUsdc, rotationPosition } from "@/lib/savora/format";
+import { decodeName, formatUsdc } from "@/lib/savora/format";
+import {
+  GroupStatus,
+  STATUS_LABEL,
+  isEjected,
+  isFullyFunded,
+  isLive,
+  roundTarget,
+  rotationSlotPosition,
+  seatAddresses,
+  slotOf,
+} from "@/lib/savora/group";
 import { useCurrentCycles, useMyGroups, useNow } from "@/lib/savora/hooks";
 import type { CycleAccount } from "@/lib/savora/hooks";
 import { useConnection } from "@/lib/savora/use-savora";
 import type { GroupAccount } from "@/lib/savora/queries";
-
-const STATUS_LABEL = ["Forming", "Active", "Completed"] as const;
 
 export default function CirclesTab() {
   const { authenticated, ready, address } = useConnection();
@@ -123,27 +130,40 @@ function actionFor(
 ): Todo | null {
   const d = group.data;
   const circle = decodeName(d.name) || "Untitled circle";
-  const idx = d.members.slice(0, d.memberCount).indexOf(me as never);
+  const idx = slotOf(d, me);
 
-  if (d.status === 0) {
-    if (idx === 0 && d.memberCount < d.capacity)
+  if (d.status === GroupStatus.Forming) {
+    if (idx === 0 && d.seatCount < d.capacity)
       return { address: group.address, circle, text: "share the invite link" };
     return null;
   }
-  if (d.status !== 1 || !cycle) return null;
+  if (d.status === GroupStatus.Extending) {
+    if (idx >= 0 && isLive(d, idx) && (d.optinMask & (1 << idx)) === 0)
+      return { address: group.address, circle, text: "opt into the extension" };
+    return null;
+  }
+  if (
+    (d.status === GroupStatus.Completed || d.status === GroupStatus.Failed) &&
+    idx >= 0 &&
+    isLive(d, idx)
+  ) {
+    return { address: group.address, circle, text: "withdraw your deposit" };
+  }
+  if (d.status !== GroupStatus.Active || !cycle) return null;
 
-  const funded = cycle.data.contributorCount === d.memberCount;
-  const pastDeadline = now > Number(cycle.data.deadline);
-  const crankable = !cycle.data.disbursed && (funded || pastDeadline);
+  const funded = isFullyFunded(cycle.data);
+  const graceEnd =
+    Number(cycle.data.deadline) + Number(d.graceSecs);
+  const crankable = !cycle.data.disbursed && (funded || now > graceEnd);
   const iPaid = idx >= 0 && (cycle.data.contributed & (1 << idx)) !== 0;
 
   if (crankable)
     return {
       address: group.address,
       circle,
-      text: funded ? "round is funded — send the payout" : "deadline passed — crank it",
+      text: funded ? "round is funded — send the payout" : "grace over — crank it",
     };
-  if (idx >= 0 && !iPaid)
+  if (idx >= 0 && isLive(d, idx) && !iPaid)
     return {
       address: group.address,
       circle,
@@ -159,14 +179,14 @@ function AggregateBar({ groups, me }: { groups: GroupAccount[]; me: string }) {
 
   for (const g of groups) {
     const d = g.data;
-    const idx = d.members.slice(0, d.memberCount).indexOf(me as never);
-    if (idx < 0) continue;
-    if (d.status === 1) perRound += d.contribution;
-    collect += d.contribution * BigInt(d.memberCount);
-    const pos = rotationPosition(d.rotation, idx, d.memberCount);
-    if (d.status === 1 && pos != null) {
-      const isNow = pos - 1 === d.currentCycle;
-      const upcoming = pos - 1 > d.currentCycle;
+    const idx = slotOf(d, me);
+    if (idx < 0 || isEjected(d, idx)) continue;
+    if (d.status === GroupStatus.Active) perRound += d.contribution;
+    collect += roundTarget(d);
+    const pos = rotationSlotPosition(d, idx);
+    if (d.status === GroupStatus.Active && pos != null) {
+      const isNow = pos === d.rotationPos + 1;
+      const upcoming = pos > d.rotationPos + 1;
       if (isNow && (!next || !next.now)) {
         next = { name: decodeName(d.name), round: pos, now: true };
       } else if (upcoming && !next) {
@@ -210,13 +230,14 @@ function AggregateBar({ groups, me }: { groups: GroupAccount[]; me: string }) {
 
 function GroupRow({ group, me }: { group: GroupAccount; me: string }) {
   const d = group.data;
-  const members = d.members.slice(0, d.memberCount) as Address[];
-  const myIndex = members.indexOf(me as never);
+  const members = seatAddresses(d);
+  const myIndex = slotOf(d, me);
   const myPosition =
-    d.status === 0
+    d.status === GroupStatus.Forming || myIndex < 0
       ? null
-      : rotationPosition(d.rotation, myIndex, d.memberCount);
-  const myTurnNow = myPosition != null && myPosition - 1 === d.currentCycle;
+      : rotationSlotPosition(d, myIndex);
+  const myTurnNow =
+    d.status === GroupStatus.Active && myPosition === d.rotationPos + 1;
 
   return (
     <Link
@@ -233,9 +254,11 @@ function GroupRow({ group, me }: { group: GroupAccount; me: string }) {
           </span>
         </div>
         <p className="tnum mt-1 text-[12px] text-ink-muted">
-          {formatUsdc(d.contribution)} USDC · {d.memberCount}/{d.capacity} seats
-          {d.status === 1
-            ? ` · round ${d.currentCycle + 1} of ${d.memberCount}`
+          {formatUsdc(d.contribution)} USDC · {d.seatCount}/{d.capacity} seats
+          {d.status === GroupStatus.Active
+            ? d.rotationsTarget > 1
+              ? ` · rotation ${d.rotationsDone + 1}/${d.rotationsTarget}, round ${d.rotationPos + 1}`
+              : ` · round ${d.rotationPos + 1} of ${d.rotationLen || d.seatCount}`
             : ""}
         </p>
       </div>
@@ -247,9 +270,9 @@ function GroupRow({ group, me }: { group: GroupAccount; me: string }) {
               <MemberMark address={m} size={16} />
             </span>
           ))}
-          {d.memberCount > 4 ? (
+          {d.seatCount > 4 ? (
             <span className="tnum pl-1.5 text-[11px] text-ink-faint">
-              +{d.memberCount - 4}
+              +{d.seatCount - 4}
             </span>
           ) : null}
         </div>

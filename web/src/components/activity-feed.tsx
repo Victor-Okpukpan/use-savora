@@ -9,8 +9,9 @@ const KIND_LABEL: Record<ActivityEvent["kind"], string> = {
   paid: "Payout",
   closed: "Closed",
   open: "Open",
-  missed: "Missed",
+  ejected: "Ejected",
   completed: "Done",
+  failed: "Failed",
 };
 
 /** An event may carry its own roster + circle name (merged multi-circle feed). */

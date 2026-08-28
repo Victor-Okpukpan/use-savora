@@ -13,6 +13,7 @@ import {
   DEMO_ME,
 } from "@/lib/savora/demo";
 import { decodeName, formatUsdc } from "@/lib/savora/format";
+import { activeCount, paidCount, roundTarget, seatAddresses } from "@/lib/savora/group";
 
 /**
  * Not a screenshot and not a drawing — the actual app components, fed the
@@ -29,8 +30,7 @@ export function ProductMock({
   className?: string;
 }) {
   const g = DEMO_GROUP.data;
-  const members = g.members.slice(0, g.memberCount) as Address[];
-  const target = g.contribution * BigInt(g.memberCount);
+  const members = seatAddresses(g) as Address[];
   const events = deriveActivity(DEMO_GROUP, DEMO_HISTORY).slice(0, 4);
 
   return (
@@ -58,8 +58,8 @@ export function ProductMock({
             </span>
           </div>
           <p className="tnum mt-1 text-[12px] text-ink-muted">
-            {formatUsdc(g.contribution)} USDC per round · {g.memberCount}/
-            {g.capacity} seats · round {g.currentCycle + 1} of {g.memberCount}
+            {formatUsdc(g.contribution)} USDC per round · {g.seatCount}/
+            {g.capacity} seats · round {g.rotationPos + 1} of {g.rotationLen}
           </p>
         </header>
 
@@ -68,7 +68,7 @@ export function ProductMock({
             <span className="micro">Your move</span>
             <p className="mt-2 text-[14px] text-ink">
               Contribute {formatUsdc(g.contribution)} USDC for round{" "}
-              {g.currentCycle + 1}
+              {g.rotationPos + 1}
             </p>
             <div className="mt-3 inline-flex h-9 items-center rounded-control bg-accent px-4 text-[13px] font-medium text-accent-contrast">
               Contribute {formatUsdc(g.contribution)} USDC
@@ -79,9 +79,9 @@ export function ProductMock({
         <div className="rounded-card border border-line bg-raised p-5">
           <PoolMeter
             pooled={DEMO_CYCLE.data.pooled}
-            target={target}
-            paidCount={DEMO_CYCLE.data.contributorCount}
-            memberCount={g.memberCount}
+            target={roundTarget(g)}
+            paidCount={paidCount(DEMO_CYCLE.data)}
+            need={activeCount(g) - 1}
           />
         </div>
 
@@ -90,23 +90,19 @@ export function ProductMock({
           <RotationTrack
             members={members}
             rotation={g.rotation}
-            memberCount={g.memberCount}
-            currentCycle={g.currentCycle}
-            status={g.status}
+            rotationLen={g.rotationLen}
+            rotationPos={g.rotationPos}
+            active
             me={DEMO_ME}
             labels={DEMO_LABELS}
           />
         </div>
 
         <RosterList
-          members={members}
-          rotation={g.rotation}
-          missed={g.missed}
-          memberCount={g.memberCount}
-          status={g.status}
-          currentCycle={g.currentCycle}
+          group={g}
           me={DEMO_ME}
           contributedMask={DEMO_CYCLE.data.contributed}
+          requiredMask={DEMO_CYCLE.data.required}
           labels={DEMO_LABELS}
         />
 

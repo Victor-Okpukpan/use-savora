@@ -12,7 +12,8 @@ import { Card } from "@/components/ui";
 import { DevnetFunds } from "@/components/devnet-faucet";
 import { DEMO } from "@/lib/savora/demo";
 import { useBalances } from "@/lib/savora/balances";
-import { decodeName, formatUsdc, rotationPosition } from "@/lib/savora/format";
+import { decodeName, formatUsdc } from "@/lib/savora/format";
+import { STATUS_LABEL, rotationSlotPosition, slotOf } from "@/lib/savora/group";
 import {
   getMyName,
   setMyName,
@@ -24,7 +25,6 @@ import { useConnection } from "@/lib/savora/use-savora";
 import type { GroupAccount } from "@/lib/savora/queries";
 
 const SOL = 1_000_000_000;
-const STATUS_LABEL = ["Forming", "Active", "Completed"] as const;
 
 export default function ProfileTab() {
   const { authenticated, ready, address } = useConnection();
@@ -150,19 +150,9 @@ function ReliabilityRecord({
 }) {
   const cells = [
     {
-      label: "Rounds paid",
-      value: `${record.roundsPaid}`,
-      sub:
-        record.roundsMissed > 0
-          ? `${record.roundsMissed} missed`
-          : "none missed",
-      accent: record.roundsMissed === 0 && record.roundsPaid > 0,
-    },
-    { label: "Turns taken", value: `${record.turnsTaken}` },
-    {
-      label: "Contributed",
-      value: formatUsdc(record.contributed, { fixed: true }),
-      sub: "USDC, exact",
+      label: "Turns taken",
+      value: `${record.turnsTaken}`,
+      sub: "collections",
     },
     {
       label: "Circles",
@@ -171,6 +161,18 @@ function ReliabilityRecord({
         record.circlesCompleted > 0
           ? `${record.circlesCompleted} completed`
           : `${record.circlesActive} active`,
+    },
+    {
+      label: "Ejections",
+      value: `${record.timesEjected}`,
+      sub: record.timesEjected === 0 ? "never missed" : "missed a round",
+      accent: record.timesEjected === 0 && record.turnsTaken > 0,
+    },
+    {
+      label: "Standing",
+      value: record.clean ? "Clean" : "Marked",
+      sub: record.clean ? "no defaults" : "was ejected",
+      accent: record.clean,
     },
   ];
 
@@ -199,18 +201,14 @@ function ReliabilityRecord({
       </div>
       {record.blemishes.length > 0 ? (
         <p className="mt-3 text-[12px] text-ink-muted">
-          Missed rounds in{" "}
-          {record.blemishes
-            .map((b) => `${b.name} (${b.missed}×)`)
-            .join(", ")}
-          .
+          Ejected from {record.blemishes.join(", ")}.
         </p>
       ) : null}
       <p className="mt-3 max-w-[56ch] text-[11px] leading-[1.6] text-ink-faint">
-        Every figure here is derived from the onchain <code>Group.missed</code>{" "}
-        counter and disbursed-cycle count — no database, and anyone can check it.
-        Amounts collected are shown as turns rather than USDC, since a payout can
-        be short when others miss.
+        Derived from the onchain <code>Group.defaulted</code> bitmask and
+        rotation counters — no database, and anyone can check it. A member either
+        stays current or is ejected on their first missed round, so the honest
+        figures are turns collected and times ejected.
       </p>
     </section>
   );
@@ -305,9 +303,8 @@ function History({
       <div className="overflow-hidden rounded-card border border-line">
         {groups.map((g) => {
           const d = g.data;
-          const idx = d.members.slice(0, d.memberCount).indexOf(me as never);
-          const paid = Math.max(0, d.currentCycle - (d.missed[idx] ?? 0));
-          const pos = rotationPosition(d.rotation, idx, d.memberCount);
+          const idx = slotOf(d, me);
+          const pos = idx >= 0 ? rotationSlotPosition(d, idx) : null;
           return (
             <Link
               key={g.address}
@@ -323,8 +320,7 @@ function History({
                 </span>
               </span>
               <span className="tnum shrink-0 text-[12px] text-ink-muted">
-                {pos ? `R${pos}` : "—"} ·{" "}
-                {formatUsdc(d.contribution * BigInt(paid), { fixed: true })} in
+                {pos ? `R${pos}` : "—"} · {formatUsdc(d.contribution)}/rd
               </span>
             </Link>
           );

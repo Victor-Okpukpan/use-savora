@@ -1,3 +1,4 @@
+import { GroupStatus, paidCount, popcount } from "./group";
 import type { GroupAccount, CycleAccount } from "./queries";
 
 /**
@@ -7,7 +8,15 @@ import type { GroupAccount, CycleAccount } from "./queries";
  */
 export type ActivityEvent = {
   key: string;
-  kind: "formed" | "sealed" | "paid" | "closed" | "open" | "missed" | "completed";
+  kind:
+    | "formed"
+    | "sealed"
+    | "paid"
+    | "closed"
+    | "open"
+    | "ejected"
+    | "completed"
+    | "failed";
   round?: number;
   /** Member index this event concerns, if any. */
   memberIndex?: number;
@@ -24,49 +33,76 @@ export function deriveActivity(
   const g = group.data;
   const out: ActivityEvent[] = [];
 
-  if (g.status === 2) {
+  if (g.status === GroupStatus.Completed) {
     out.push({
       key: "completed",
       kind: "completed",
-      text: "Every member has collected — the circle is complete",
+      text:
+        g.rotationsDone > 1
+          ? `All ${g.rotationsDone} rotations complete`
+          : "Every member has collected — the circle is complete",
+      ref: group.address,
+    });
+  }
+  if (g.status === GroupStatus.Failed) {
+    out.push({
+      key: "failed",
+      kind: "failed",
+      text: "The circle collapsed — too few active members to continue",
       ref: group.address,
     });
   }
 
   // `cycles` arrives newest-first from getCycleHistory.
   for (const c of cycles) {
-    const round = c.data.index;
-    const collector = c.data.recipientIndex;
+    const d = c.data;
+    const roundNo = d.index + 1;
+    const need = Math.max(0, popcount(d.required) - 1); // recipient owes nothing
 
-    if (c.data.disbursed) {
+    if (d.ejectedHere !== 0) {
+      const slots: number[] = [];
+      for (let i = 0; i < 12; i++) if (d.ejectedHere & (1 << i)) slots.push(i);
+      for (const s of slots) {
+        out.push({
+          key: `ejected-${d.index}-${s}`,
+          kind: "ejected",
+          round: d.index,
+          memberIndex: s,
+          text: `missed round ${roundNo} — ejected, deposit forfeited`,
+          ref: c.address,
+        });
+      }
+    }
+
+    if (d.disbursed) {
       out.push({
-        key: `paid-${round}`,
+        key: `paid-${d.index}`,
         kind: "paid",
-        round,
-        memberIndex: collector,
-        amount: c.data.payout,
-        text: `Round ${round + 1} paid out`,
+        round: d.index,
+        memberIndex: d.recipientIndex,
+        amount: d.payout,
+        text: `Round ${roundNo} paid out`,
         ref: c.address,
       });
       out.push({
-        key: `closed-${round}`,
+        key: `closed-${d.index}`,
         kind: "closed",
-        round,
-        text: `Round ${round + 1} closed · ${c.data.contributorCount}/${g.memberCount} contributed`,
+        round: d.index,
+        text: `Round ${roundNo} closed · ${paidCount(d)}/${need} contributed`,
         ref: c.address,
       });
     } else {
       out.push({
-        key: `open-${round}`,
+        key: `open-${d.index}`,
         kind: "open",
-        round,
-        text: `Round ${round + 1} open · ${c.data.contributorCount}/${g.memberCount} contributed`,
+        round: d.index,
+        text: `Round ${roundNo} open · ${paidCount(d)}/${need} contributed`,
         ref: c.address,
       });
     }
   }
 
-  if (g.status !== 0) {
+  if (g.status !== GroupStatus.Forming) {
     out.push({
       key: "sealed",
       kind: "sealed",
@@ -75,14 +111,13 @@ export function deriveActivity(
     });
   }
 
-  // Always the oldest event: the circle exists from the moment it's created,
-  // so a still-forming circle has this one line and nothing else.
+  // Always the oldest event: the circle exists from the moment it's created.
   out.push({
     key: "formed",
     kind: "formed",
     text:
-      g.status === 0
-        ? `Circle created · ${g.memberCount}/${g.capacity} seats filled`
+      g.status === GroupStatus.Forming
+        ? `Circle created · ${g.seatCount}/${g.capacity} seats filled`
         : "Circle created",
     ref: group.address,
   });
@@ -90,9 +125,7 @@ export function deriveActivity(
   return out;
 }
 
-/** Total missed contributions across the whole circle, for a summary line. */
-export function totalMissed(group: GroupAccount): number {
-  return group.data.missed
-    .slice(0, group.data.memberCount)
-    .reduce((a, b) => a + b, 0);
+/** How many members have been ejected for a missed contribution. */
+export function totalDefaulted(group: GroupAccount): number {
+  return popcount(group.data.defaulted);
 }

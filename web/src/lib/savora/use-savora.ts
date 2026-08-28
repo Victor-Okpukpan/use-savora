@@ -14,12 +14,17 @@ import {
 } from "@solana/kit";
 
 import {
+  cancelExtensionIx,
+  closeGroupIx,
+  closePositionIx,
   contributeIx,
   createGroupIx,
   disbursePayoutIx,
   joinGroupIx,
   leaveGroupIx,
   openCycleIx,
+  optInExtensionIx,
+  proposeExtensionIx,
 } from "./instructions";
 import { confirmSignature, sendInstructions, type SignAndSend } from "./tx";
 import { DEMO, DEMO_ME } from "./demo";
@@ -41,7 +46,6 @@ const DEMO_CONNECTION: ConnectionState = {
 
 export function useConnection(): ConnectionState {
   // Hooks run unconditionally; demo mode swaps the *result*, not the calls.
-  // (Demo mode still mounts PrivyProvider — it just needs a valid app id.)
   const { ready, authenticated } = usePrivy();
   const { wallets } = useWallets();
   if (DEMO) return DEMO_CONNECTION;
@@ -59,7 +63,9 @@ export function useSavora() {
   const { signAndSendTransaction } = useSignAndSendTransaction();
 
   const run = useCallback(
-    async (build: (signer: ReturnType<typeof createNoopSigner>) => Promise<Instruction[]>) => {
+    async (
+      build: (signer: ReturnType<typeof createNoopSigner>) => Promise<Instruction[]>,
+    ) => {
       if (DEMO) {
         await new Promise((r) => setTimeout(r, 900));
         return "demo-signature";
@@ -82,12 +88,16 @@ export function useSavora() {
   return useMemo(
     () => ({
       address,
+
       createGroup: (p: {
         seed: bigint;
         name: string;
         contribution: bigint;
+        deposit: bigint;
         cycleSecs: bigint;
+        graceSecs: bigint;
         capacity: number;
+        rotations: number;
       }) => run(async (s) => [await createGroupIx({ creator: s, ...p })]),
 
       joinGroup: (group: Address) =>
@@ -97,10 +107,15 @@ export function useSavora() {
         run(async (s) => [await leaveGroupIx(s, group)]),
 
       /** Contribute; opens the cycle account first if it does not exist yet. */
-      contribute: (group: Address, cycleIndex: number, needsOpen: boolean) =>
+      contribute: (
+        group: Address,
+        cycleIndex: number,
+        recipient: Address,
+        needsOpen: boolean,
+      ) =>
         run(async (s) => [
           ...(needsOpen ? [await openCycleIx(s, group, cycleIndex)] : []),
-          await contributeIx(s, group, cycleIndex),
+          await contributeIx(s, group, cycleIndex, recipient),
         ]),
 
       openCycle: (group: Address, cycleIndex: number) =>
@@ -110,6 +125,27 @@ export function useSavora() {
         run(async (s) => [
           await disbursePayoutIx(s, group, cycleIndex, recipient),
         ]),
+
+      proposeExtension: (
+        group: Address,
+        additionalRotations: number,
+        optinSecs: bigint,
+      ) =>
+        run(async (s) => [
+          await proposeExtensionIx(s, group, additionalRotations, optinSecs),
+        ]),
+
+      optInExtension: (group: Address) =>
+        run(async (s) => [await optInExtensionIx(s, group)]),
+
+      cancelExtension: (group: Address) =>
+        run(async (s) => [await cancelExtensionIx(s, group)]),
+
+      closePosition: (group: Address) =>
+        run(async (s) => [await closePositionIx(s, group)]),
+
+      closeGroup: (group: Address) =>
+        run(async (s) => [await closeGroupIx(s, group)]),
     }),
     [address, run],
   );

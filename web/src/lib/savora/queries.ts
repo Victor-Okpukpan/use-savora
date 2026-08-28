@@ -39,14 +39,22 @@ export async function getCycle(
   return acc.exists ? { address: cycle, data: acc.data } : null;
 }
 
-/** Current cycle plus every settled one, newest first. */
+/**
+ * Current cycle plus every settled one, newest first. `currentCycle` is a
+ * global, monotonic index, so every index `0..=currentCycle` is either a
+ * disbursed round or the one now open. Capped so a long-lived circle doesn't
+ * fan out unboundedly.
+ */
+const MAX_HISTORY = 60;
 export async function getCycleHistory(
   group: GroupAccount,
   rpc: Rpc = defaultRpc,
 ): Promise<CycleAccount[]> {
-  const count = group.data.currentCycle + 1;
-  const indices = Array.from({ length: count }, (_, i) => i).filter(
-    (i) => i < group.data.memberCount,
+  const latest = group.data.currentCycle;
+  const first = Math.max(0, latest - (MAX_HISTORY - 1));
+  const indices = Array.from(
+    { length: latest - first + 1 },
+    (_, k) => first + k,
   );
   const cycles = await Promise.all(
     indices.map((i) => getCycle(group.address, i, rpc)),
@@ -95,7 +103,7 @@ export async function getGroupsForMember(
     };
     const bytes = base64.encode(entry.account.data[0]);
     const data = getGroupDecoder().decode(bytes);
-    if (data.members.slice(0, data.memberCount).includes(member)) {
+    if (data.members.slice(0, data.seatCount).includes(member)) {
       out.push({ address: entry.pubkey, data });
     }
   }

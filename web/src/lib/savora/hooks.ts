@@ -39,7 +39,7 @@ export function useCurrentCycle(group: GroupAccount | null | undefined) {
   const index = group?.data.currentCycle ?? null;
   return useQuery({
     queryKey: ["cycle", address, index],
-    enabled: !!group && group.data.status === 1 && index! < group.data.memberCount,
+    enabled: !!group && group.data.status === 1,
     queryFn: () => (DEMO ? DEMO_CYCLE : getCycle(address as Address, index as number)),
     refetchInterval: DEMO ? false : 15_000,
   });
@@ -69,7 +69,6 @@ export function useCurrentCycles(groups: GroupAccount[] | undefined) {
       const index = g.data.currentCycle;
       return {
         queryKey: ["cycle", g.address, index],
-        enabled: index < g.data.memberCount,
         queryFn: () =>
           DEMO ? DEMO_CYCLE : getCycle(g.address, index),
         refetchInterval: DEMO ? (false as const) : 15_000,
@@ -107,7 +106,7 @@ export function useAllActivity(groups: GroupAccount[] | undefined) {
     list.forEach((g, i) => {
       const cycles = results[i]?.data ?? [];
       const circle = decodeName(g.data.name) || "Untitled circle";
-      const members = g.data.members.slice(0, g.data.memberCount);
+      const members = g.data.members.slice(0, g.data.seatCount);
       for (const e of deriveActivity(g, cycles)) {
         events.push({
           ...e,
@@ -122,10 +121,11 @@ export function useAllActivity(groups: GroupAccount[] | undefined) {
     // round then kind so the merged feed reads roughly chronologically.
     const rank: Record<ActivityEvent["kind"], number> = {
       completed: 0,
+      failed: 0,
       paid: 1,
       closed: 2,
-      open: 3,
-      missed: 4,
+      ejected: 3,
+      open: 4,
       sealed: 5,
       formed: 6,
     };

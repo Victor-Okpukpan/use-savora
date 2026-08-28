@@ -11,16 +11,29 @@ import {
   type Address,
   type Instruction,
 } from "@solana/kit";
-import { getSetComputeUnitPriceInstruction } from "@solana-program/compute-budget";
+import {
+  getSetComputeUnitLimitInstruction,
+  getSetComputeUnitPriceInstruction,
+} from "@solana-program/compute-budget";
 
 import { SOLANA_CHAIN } from "./config";
 import { rpc } from "./rpc";
 
-/** Minimal shape of Privy's `signAndSendTransaction` we depend on. */
+/**
+ * Minimal shape of Privy's `signAndSendTransaction` we depend on.
+ *
+ * `options.optimisticBroadcast` sets Privy's internal `skipConfirmation`, so it
+ * returns the signature the moment the broadcast lands instead of running its
+ * own hardcoded 10s websocket confirmation — which races a *different* RPC node
+ * than the one that broadcast and, when it loses, throws a bare "Transaction
+ * confirmation timed out" with no signature attached. We confirm ourselves in
+ * `confirmSignature` (30s of `getSignatureStatuses` polling over the app RPC).
+ */
 export type SignAndSend = (input: {
   transaction: Uint8Array;
   wallet: unknown;
   chain?: typeof SOLANA_CHAIN;
+  options?: { optimisticBroadcast?: boolean; skipSimulation?: boolean };
 }) => Promise<{ signature: Uint8Array }>;
 
 export type SendResult = { signature: string };
@@ -36,14 +49,18 @@ export async function sendInstructions(
   instructions: Instruction[],
   wallet: unknown,
   signAndSend: SignAndSend,
-  opts?: { priorityFeeMicroLamports?: bigint },
+  opts?: { priorityFeeMicroLamports?: bigint; computeUnitLimit?: number },
 ): Promise<SendResult> {
   const { value: latestBlockhash } = await rpc
     .getLatestBlockhash({ commitment: "confirmed" })
     .send();
 
   const priorityFee = opts?.priorityFeeMicroLamports ?? 50_000n;
+  // Savora's heaviest instruction (`contribute` with the inline auto-disburse)
+  // fits well under 200k CU; 220k leaves headroom without over-reserving.
+  const computeUnitLimit = opts?.computeUnitLimit ?? 220_000;
   const withBudget: Instruction[] = [
+    getSetComputeUnitLimitInstruction({ units: computeUnitLimit }),
     getSetComputeUnitPriceInstruction({ microLamports: priorityFee }),
     ...instructions,
   ];
@@ -61,6 +78,7 @@ export async function sendInstructions(
     transaction: new Uint8Array(wire),
     wallet,
     chain: SOLANA_CHAIN,
+    options: { optimisticBroadcast: true },
   });
 
   return { signature: getBase58Decoder().decode(signature) };

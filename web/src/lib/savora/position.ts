@@ -1,19 +1,30 @@
-import { decodeName, rotationPosition } from "./format";
+import { decodeName } from "./format";
+import {
+  GroupStatus,
+  isDefaulted,
+  isEjected,
+  roundTarget,
+  rotationSlotPosition,
+  slotOf,
+} from "./group";
 import type { GroupAccount, CycleAccount } from "./queries";
 
 /** What a member has put in and what they're owed, for one circle. */
 export type Position = {
   memberIndex: number;
-  /** USDC contributed across all rounds so far. */
+  /** Contributed across every round recorded so far (exact). */
   contributed: bigint;
-  /** Full pool the member collects on their turn (nominal). */
+  /** Refundable security deposit still parked in the vault. */
+  deposit: bigint;
+  /** Nominal pot the member collects on their turn (at the current size). */
   collect: bigint;
-  /** 1-based round the member collects in. */
+  /** 1-based round the member collects in, within the current rotation. */
   turnRound: number | null;
-  /** "collected" | "now" | "upcoming" | "forming" */
-  turnState: "collected" | "now" | "upcoming" | "forming";
-  /** USDC still owed across the rest of the rotation. */
+  turnState: "collected" | "now" | "upcoming" | "forming" | "ejected";
+  /** Still owed across the rest of this rotation (upper bound). */
   remaining: bigint;
+  ejected: boolean;
+  defaulted: boolean;
 };
 
 export function computePosition(
@@ -22,58 +33,76 @@ export function computePosition(
   me: string,
 ): Position | null {
   const g = group.data;
-  const memberIndex = g.members.slice(0, g.memberCount).indexOf(me as never);
+  const memberIndex = slotOf(g, me);
   if (memberIndex < 0) return null;
 
   const bit = 1 << memberIndex;
   let roundsPaid = 0;
   for (const c of cycles) {
-    if ((c.data.contributed & bit) !== 0) roundsPaid++;
+    // paid = my bit set AND I wasn't just the pre-set recipient that round
+    if (
+      (c.data.contributed & bit) !== 0 &&
+      c.data.recipientIndex !== memberIndex
+    ) {
+      roundsPaid++;
+    }
   }
   const contributed = g.contribution * BigInt(roundsPaid);
-  const collect = g.contribution * BigInt(g.memberCount);
+  const collect = roundTarget(g);
+  const ejected = isEjected(g, memberIndex);
 
   const turnRound =
-    g.status === 0
+    g.status === GroupStatus.Forming || ejected
       ? null
-      : rotationPosition(g.rotation, memberIndex, g.memberCount);
+      : rotationSlotPosition(g, memberIndex);
 
   let turnState: Position["turnState"] = "forming";
-  if (g.status !== 0 && turnRound != null) {
-    if (g.status === 2 || turnRound - 1 < g.currentCycle) turnState = "collected";
-    else if (turnRound - 1 === g.currentCycle) turnState = "now";
+  if (ejected) {
+    turnState = "ejected";
+  } else if (g.status === GroupStatus.Completed) {
+    turnState = "collected";
+  } else if (g.status !== GroupStatus.Forming && turnRound != null) {
+    const pos = g.rotationPos + 1;
+    if (turnRound < pos) turnState = "collected";
+    else if (turnRound === pos) turnState = "now";
     else turnState = "upcoming";
   }
 
-  const roundsLeft = Math.max(0, g.memberCount - roundsPaid);
+  const roundsLeft =
+    ejected || g.status !== GroupStatus.Active
+      ? 0
+      : Math.max(0, g.rotationLen - g.rotationPos);
   const remaining = g.contribution * BigInt(roundsLeft);
 
-  return { memberIndex, contributed, collect, turnRound, turnState, remaining };
+  return {
+    memberIndex,
+    contributed,
+    deposit: ejected ? 0n : g.deposit,
+    collect,
+    turnRound,
+    turnState,
+    remaining,
+    ejected,
+    defaulted: isDefaulted(g, memberIndex),
+  };
 }
 
 /**
- * A member's reliability record across every circle they're in. Derived from
- * `Group` accounts alone — no extra RPC:
- *
- *   roundsClosed  = group.current_cycle          (disbursed cycles)
- *   missed        = group.missed[myIndex]         (permanent onchain counter)
- *   paid          = roundsClosed − missed
- *
- * `contributed` is exact: the program enforces the exact contribution amount,
- * so a paid round is always `group.contribution`. `collected` is *not*
- * derivable here (a payout can be short when others miss), so it is reported
- * as turns taken, not a USDC figure.
+ * A member's reliability record across every circle they're in — derived from
+ * `Group` accounts alone, no extra RPC. What the chain records now is coarse:
+ * a member either stays live (paid every round) or is ejected on their first
+ * miss. So the honest figures are turns collected and times ejected.
  */
 export type Record = {
   circlesActive: number;
   circlesCompleted: number;
   circlesForming: number;
-  roundsPaid: number;
-  roundsMissed: number;
   turnsTaken: number;
-  contributed: bigint;
-  /** Circles where I've missed at least one round, for a "where" line. */
-  blemishes: { name: string; missed: number }[];
+  timesEjected: number;
+  /** Never ejected from any circle they've been in. */
+  clean: boolean;
+  /** Circle names where they were ejected. */
+  blemishes: string[];
 };
 
 export function computeRecord(groups: GroupAccount[], me: string): Record {
@@ -81,40 +110,37 @@ export function computeRecord(groups: GroupAccount[], me: string): Record {
     circlesActive: 0,
     circlesCompleted: 0,
     circlesForming: 0,
-    roundsPaid: 0,
-    roundsMissed: 0,
     turnsTaken: 0,
-    contributed: 0n,
+    timesEjected: 0,
+    clean: true,
     blemishes: [],
   };
 
   for (const group of groups) {
     const g = group.data;
-    const idx = g.members.slice(0, g.memberCount).indexOf(me as never);
+    const idx = slotOf(g, me);
     if (idx < 0) continue;
 
-    if (g.status === 0) {
+    if (g.status === GroupStatus.Forming) {
       r.circlesForming++;
       continue;
     }
-    if (g.status === 1) r.circlesActive++;
-    if (g.status === 2) r.circlesCompleted++;
+    if (g.status === GroupStatus.Completed) r.circlesCompleted++;
+    else r.circlesActive++; // Active | Extending | Failed
 
-    const roundsClosed = g.currentCycle;
-    const missed = g.missed[idx] ?? 0;
-    const paid = Math.max(0, roundsClosed - missed);
-
-    r.roundsPaid += paid;
-    r.roundsMissed += missed;
-    r.contributed += g.contribution * BigInt(paid);
-    if (missed > 0) {
-      r.blemishes.push({ name: decodeName(g.name), missed });
+    if (isDefaulted(g, idx)) {
+      r.timesEjected++;
+      r.clean = false;
+      r.blemishes.push(decodeName(g.name) || "a circle");
     }
 
-    const pos = rotationPosition(g.rotation, idx, g.memberCount);
-    if (pos != null && (g.status === 2 || pos - 1 < g.currentCycle)) {
-      r.turnsTaken++;
+    // full rotations behind us, plus this rotation's turn if it's already past
+    let turns = g.rotationsDone;
+    if (g.status === GroupStatus.Active) {
+      const pos = rotationSlotPosition(g, idx);
+      if (pos != null && pos <= g.rotationPos) turns += 1;
     }
+    r.turnsTaken += turns;
   }
 
   return r;

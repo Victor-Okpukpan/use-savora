@@ -6,6 +6,7 @@ const TURN_TEXT: Record<Position["turnState"], string> = {
   now: "your turn now",
   upcoming: "upcoming",
   forming: "set at seal",
+  ejected: "ejected",
 };
 
 /** The four questions a member actually has about a circle. */
@@ -17,9 +18,11 @@ export function PositionSummary({ position }: { position: Position }) {
       sub: "USDC so far",
     },
     {
-      label: "You collect",
-      value: `${formatUsdc(position.collect, { fixed: true })}`,
-      sub: "USDC, on your turn",
+      label: position.ejected ? "Deposit" : "You collect",
+      value: position.ejected
+        ? "forfeited"
+        : `${formatUsdc(position.collect, { fixed: true })}`,
+      sub: position.ejected ? "you were ejected" : "USDC, on your turn",
     },
     {
       label: "Your turn",
@@ -30,7 +33,7 @@ export function PositionSummary({ position }: { position: Position }) {
     {
       label: "Still owed",
       value: `${formatUsdc(position.remaining, { fixed: true })}`,
-      sub: "USDC over the rotation",
+      sub: "USDC this rotation",
     },
   ];
 
