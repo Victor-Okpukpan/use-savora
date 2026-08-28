@@ -20,7 +20,13 @@ export type Position = {
   collect: bigint;
   /** 1-based round the member collects in, within the current rotation. */
   turnRound: number | null;
-  turnState: "collected" | "now" | "upcoming" | "forming" | "ejected";
+  turnState:
+    | "collected"
+    | "now"
+    | "upcoming"
+    | "forming"
+    | "ejected"
+    | "left";
   /** Still owed across the rest of this rotation (upper bound). */
   remaining: bigint;
   ejected: boolean;
@@ -35,6 +41,7 @@ export function computePosition(
   const g = group.data;
   const memberIndex = slotOf(g, me);
   if (memberIndex < 0) return null;
+  const defaulted = isDefaulted(g, memberIndex);
 
   const bit = 1 << memberIndex;
   let roundsPaid = 0;
@@ -58,7 +65,7 @@ export function computePosition(
 
   let turnState: Position["turnState"] = "forming";
   if (ejected) {
-    turnState = "ejected";
+    turnState = defaulted ? "ejected" : "left";
   } else if (g.status === GroupStatus.Completed) {
     turnState = "collected";
   } else if (g.status !== GroupStatus.Forming && turnRound != null) {
@@ -88,7 +95,7 @@ export function computePosition(
     turnState,
     remaining,
     ejected,
-    defaulted: isDefaulted(g, memberIndex),
+    defaulted,
   };
 }
 

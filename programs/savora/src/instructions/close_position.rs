@@ -4,7 +4,7 @@ use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use crate::{
     constants::GROUP_SEED,
     errors::SavoraError,
-    instructions::shared::{transfer_from_vault, try_seal_extension},
+    instructions::shared::transfer_from_vault,
     state::{Group, GroupStatus},
 };
 
@@ -40,12 +40,13 @@ pub struct ClosePosition<'info> {
     pub token_program: Interface<'info, TokenInterface>,
 }
 
-/// Withdraw the security deposit and end membership. This is the exit hatch
-/// for all three cases: taking your deposit back after the circle completes,
-/// declining a proposed extension, and collecting after a collapse.
+/// Withdraw the security deposit and end membership. The exit hatch for
+/// taking your deposit back after the circle completes or collapses, and for
+/// declining a proposed extension.
 ///
-/// Withdrawing is permanent — the slot is tombstoned, so a member who
-/// withdraws at `Completed` cannot later opt into an extension.
+/// Withdrawing is permanent — the slot is tombstoned. Doing it while an
+/// extension is pending is a hard **no**: it cancels the whole proposal and
+/// returns the circle to `Completed`, since an extension needs every member.
 pub fn handler(ctx: Context<ClosePosition>) -> Result<()> {
     let member = ctx.accounts.member.key();
     let deposit = ctx.accounts.group.deposit;
@@ -69,8 +70,16 @@ pub fn handler(ctx: Context<ClosePosition>) -> Result<()> {
     {
         let group = &mut ctx.accounts.group;
         group.ejected |= 1u16 << i;
-        // A departing member can't still be counted toward a pending extension.
-        group.optin_mask &= group.live_mask();
+        // Withdrawing during a pending extension is a decline: kill the whole
+        // proposal (an extension is all-or-nothing) and drop back to Completed.
+        if group.status == GroupStatus::Extending {
+            group.status = GroupStatus::Completed;
+            group.pending_rotations = 0;
+            group.optin_deadline = 0;
+            group.optin_mask = 0;
+        } else {
+            group.optin_mask &= group.live_mask();
+        }
     }
 
     transfer_from_vault(
@@ -81,12 +90,6 @@ pub fn handler(ctx: Context<ClosePosition>) -> Result<()> {
         &ctx.accounts.group,
         deposit,
     )?;
-
-    // If this exit was the last decline standing between the rest and a sealed
-    // extension, seal it now.
-    if ctx.accounts.group.status == GroupStatus::Extending {
-        try_seal_extension(&mut ctx.accounts.group);
-    }
 
     Ok(())
 }

@@ -110,8 +110,9 @@ pub mod savora {
         instructions::cancel_extension::handler(ctx)
     }
 
-    /// Withdraw the security deposit and end membership. Allowed on
-    /// `Completed`, `Extending` (this is how you decline), or `Failed`.
+    /// Withdraw the security deposit and end membership (`Completed` / `Failed`).
+    /// Doing this while an extension is pending is a decline — it cancels the
+    /// whole proposal and returns the circle to `Completed`.
     pub fn close_position(ctx: Context<ClosePosition>) -> Result<()> {
         instructions::close_position::handler(ctx)
     }

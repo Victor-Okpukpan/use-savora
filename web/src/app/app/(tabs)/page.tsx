@@ -9,6 +9,7 @@ import { decodeName, formatUsdc } from "@/lib/savora/format";
 import {
   GroupStatus,
   STATUS_LABEL,
+  isDefaulted,
   isEjected,
   isFullyFunded,
   isLive,
@@ -232,12 +233,24 @@ function GroupRow({ group, me }: { group: GroupAccount; me: string }) {
   const d = group.data;
   const members = seatAddresses(d);
   const myIndex = slotOf(d, me);
+  const gone = myIndex >= 0 && isEjected(d, myIndex);
   const myPosition =
-    d.status === GroupStatus.Forming || myIndex < 0
+    d.status === GroupStatus.Forming || myIndex < 0 || gone
       ? null
       : rotationSlotPosition(d, myIndex);
   const myTurnNow =
     d.status === GroupStatus.Active && myPosition === d.rotationPos + 1;
+  const rightLabel = gone
+    ? isDefaulted(d, myIndex)
+      ? "ejected"
+      : "you left"
+    : myPosition
+      ? myTurnNow
+        ? "your turn now"
+        : `you collect R${myPosition}`
+      : d.status === GroupStatus.Forming
+        ? "seats open"
+        : "";
 
   return (
     <Link
@@ -281,13 +294,7 @@ function GroupRow({ group, me }: { group: GroupAccount; me: string }) {
             myTurnNow ? "font-medium text-accent" : "text-ink-muted"
           }`}
         >
-          {myPosition
-            ? myTurnNow
-              ? "your turn now"
-              : `you collect R${myPosition}`
-            : d.status === 0
-              ? "seats open"
-              : ""}
+          {rightLabel}
         </span>
       </div>
     </Link>

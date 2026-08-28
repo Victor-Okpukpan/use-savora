@@ -156,9 +156,10 @@ export default function DocsPage() {
               A circle runs the number of rotations set at creation, then goes{" "}
               <B>Completed</B> — but that is not the end. The creator can propose
               more rotations; the extension starts only once <B>every</B> live
-              member opts in. Declining withdraws your deposit and ends your
-              membership for good. At any completion you can simply withdraw your
-              deposit and walk away.
+              member opts in. An extension is all-or-nothing: if one member
+              declines — by withdrawing their deposit — the whole proposal is
+              cancelled and the circle returns to <B>Completed</B>. At any
+              completion you can simply withdraw your deposit and walk away.
             </P>
           </Section>
 
@@ -273,7 +274,7 @@ disburse_payout()     permissionless crank; ejects no-shows past grace
 propose_extension()   creator, Completed; propose more rotations
 opt_in_extension()    seals the extension once every live member has opted in
 cancel_extension()    creator any time, or anyone once the opt-in window closes
-close_position()      withdraw the deposit + exit (Completed | Extending | Failed)
+close_position()      withdraw the deposit + exit; during Extending it cancels the proposal
 close_group()         creator, Forming, seat_count == 1; refunds + closes`}</Pre>
             <P className="mt-5">
               Program <A href={explorerUrl(PROGRAM_ID)}>{PROGRAM_ID}</A>

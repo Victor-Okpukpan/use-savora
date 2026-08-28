@@ -556,7 +556,7 @@ describe("savora program", () => {
     expect(readGroup(group).rotationsDone).toBe(2);
   });
 
-  it("declining an extension refunds the decliner and seals for the rest", async () => {
+  it("one decline cancels the whole extension and refunds the decliner", async () => {
     const { creator, group, deposit, contribution } = await newGroup({
       capacity: 3,
       rotations: 1,
@@ -569,18 +569,24 @@ describe("savora program", () => {
       await proposeExtensionIx(creator, group, 1, 7200n),
     ]);
     await h.expectOk(joiners[0], [await optInExtensionIx(joiners[0], group)]);
-    // joiners[1] declines by withdrawing
+    // joiners[1] declines by withdrawing — this kills the proposal for everyone
     const before = await tokenBalanceAt(h.svm, joiners[1].address, h.mint);
     await h.expectOk(joiners[1], [await closePositionIx(joiners[1], group, h.mint)]);
     expect(
       (await tokenBalanceAt(h.svm, joiners[1].address, h.mint)) - before,
     ).toBe(deposit);
 
-    // the extension sealed immediately for creator + joiners[0]
     const g = readGroup(group);
-    expect(g.status).toBe(ACTIVE);
-    expect(g.rotationsTarget).toBe(2);
+    expect(g.status).toBe(COMPLETED);
+    expect(g.rotationsTarget).toBe(1);
+    expect(g.pendingRotations).toBe(0);
+    expect(g.optinMask).toBe(0);
+    // the two who stayed keep their deposits and can withdraw
     expect(liveSlots(g).length).toBe(2);
+    for (const m of [creator, joiners[0]]) {
+      await h.expectOk(m, [await closePositionIx(m, group, h.mint)]);
+    }
+    expect(await vaultBalance(group)).toBe(0n);
   });
 
   it("cancels a stale extension proposal once the opt-in window passes", async () => {
