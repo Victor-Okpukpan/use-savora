@@ -75,12 +75,12 @@ export default function Home() {
         <section className="border-t border-line bg-raised">
           <div className="mx-auto w-full max-w-site px-6 py-14 sm:px-8 lg:px-12">
             <Reveal>
-              <p className="micro">The stack under your circle</p>
+              <p className="micro text-center">The stack under your circle</p>
             </Reveal>
             <RevealGroup className="mt-6 grid grid-cols-2 gap-y-6 sm:grid-cols-4">
               {STACK.map((s) => (
                 <RevealItem key={s.name}>
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col items-center gap-1 text-center">
                     <span className="text-[15px] font-medium text-ink">
                       {s.name}
                     </span>
