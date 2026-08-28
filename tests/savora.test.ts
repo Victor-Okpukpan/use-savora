@@ -608,6 +608,27 @@ describe("savora program", () => {
     expect(await vaultBalance(group)).toBe(0n);
   });
 
+  it("can seal and open round 1 in a single transaction (last join + open_cycle)", async () => {
+    const { creator, group, deposit, contribution } = await newGroup({
+      capacity: 2,
+      rotations: 1,
+    });
+    const joiner = await h.wallet();
+    await h.fundToken(joiner.address, deposit + contribution * 4n);
+    // last join bundled with open_cycle for the global cycle 0
+    await h.expectOk(joiner, [
+      await joinGroupIx(joiner, group, h.mint),
+      await openCycleIx(joiner, group, 0),
+    ]);
+    const g = readGroup(group);
+    expect(g.status).toBe(ACTIVE);
+    const c = await readCycle(group, 0);
+    expect(c.disbursed).toBe(false);
+    expect(c.required).toBe(0b11); // both seats on the hook
+    expect(g.rotationLen).toBe(2);
+    void creator;
+  });
+
   it("refuses close_position while the circle is still running", async () => {
     const { creator, group, deposit } = await newGroup({ capacity: 3 });
     await fillSeats(group, 2, deposit * 2n);

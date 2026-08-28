@@ -100,8 +100,16 @@ export function useSavora() {
         rotations: number;
       }) => run(async (s) => [await createGroupIx({ creator: s, ...p })]),
 
-      joinGroup: (group: Address) =>
-        run(async (s) => [await joinGroupIx(s, group)]),
+      /**
+       * Join a circle. Pass `opensRotation` when this join fills the last seat
+       * — it bundles `open_cycle` so round 1 shuffles and opens in the same
+       * transaction, instead of leaving the circle sealed-but-not-started.
+       */
+      joinGroup: (group: Address, opensRotation = false) =>
+        run(async (s) => [
+          await joinGroupIx(s, group),
+          ...(opensRotation ? [await openCycleIx(s, group, 0)] : []),
+        ]),
 
       leaveGroup: (group: Address) =>
         run(async (s) => [await leaveGroupIx(s, group)]),

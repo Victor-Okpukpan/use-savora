@@ -235,7 +235,12 @@ function GroupDetail() {
           isMember={view.isMember}
           isCreator={view.myIndex === 0}
           busy={busy}
-          onJoin={() => act("join", () => savora.joinGroup(groupAddress))}
+          onJoin={() =>
+            act("join", () =>
+              // Filling the last seat also opens round 1 in the same tx.
+              savora.joinGroup(groupAddress, d.capacity - d.seatCount === 1),
+            )
+          }
           onLeave={() => act("leave", () => savora.leaveGroup(groupAddress))}
           onClose={() =>
             act("close", () => savora.closeGroup(groupAddress))
