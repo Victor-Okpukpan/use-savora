@@ -8,6 +8,7 @@ import type { Address } from "@solana/kit";
 import type { Cycle, Group } from "@/generated";
 
 import { ActivityFeed } from "@/components/activity-feed";
+import { useBalances } from "@/lib/savora/balances";
 import { ConnectGate, Shell } from "@/components/shell";
 import { InviteLink } from "@/components/invite-link";
 import { PoolMeter } from "@/components/pool-meter";
@@ -83,6 +84,8 @@ function GroupDetail() {
   const historyQ = useCycleHistory(group);
   const savora = useSavora();
   const nowSec = useNow(1000);
+  const balances = useBalances(me ?? null);
+  const usdc = balances.data?.usdc ?? null;
 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -224,6 +227,11 @@ function GroupDetail() {
           seatsLeft={d.capacity - d.seatCount}
           deposit={d.deposit}
           contribution={d.contribution}
+          fundsShort={
+            balances.data != null &&
+            !view.isMember &&
+            (usdc == null || usdc < d.deposit)
+          }
           isMember={view.isMember}
           isCreator={view.myIndex === 0}
           busy={busy}
@@ -338,6 +346,7 @@ function FormingPanel({
   seatsLeft,
   deposit,
   contribution,
+  fundsShort,
   isMember,
   isCreator,
   busy,
@@ -349,6 +358,7 @@ function FormingPanel({
   seatsLeft: number;
   deposit: bigint;
   contribution: bigint;
+  fundsShort: boolean;
   isMember: boolean;
   isCreator: boolean;
   busy: string | null;
@@ -375,7 +385,7 @@ function FormingPanel({
           {!isMember ? (
             <Button
               loading={busy === "join"}
-              disabled={seatsLeft === 0}
+              disabled={seatsLeft === 0 || fundsShort}
               onClick={onJoin}
             >
               Join · lock {formatUsdc(deposit)} USDC deposit
@@ -402,9 +412,20 @@ function FormingPanel({
           ) : null}
         </div>
 
+        {fundsShort ? (
+          <p className="text-[12px] text-warning">
+            You need {formatUsdc(deposit)} USDC to lock the deposit. Get devnet
+            USDC on your{" "}
+            <Link href="/app/profile" className="text-accent hover:underline">
+              profile
+            </Link>
+            .
+          </p>
+        ) : null}
+
         <p className="border-t border-line pt-4 text-[12px] leading-[1.7] text-ink-faint">
-          Joining locks a {formatUsdc(deposit)} USDC deposit plus your first{" "}
-          {formatUsdc(contribution)} USDC contribution. The deposit is refunded
+          Joining locks a {formatUsdc(deposit)} USDC deposit; then you contribute{" "}
+          {formatUsdc(contribution)} USDC each round. The deposit is refunded
           when the circle completes and you withdraw — it&rsquo;s forfeited only
           if you miss a round. When the last seat fills, the collection order is
           shuffled onchain and no one picks it.

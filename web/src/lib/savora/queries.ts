@@ -95,6 +95,11 @@ export async function getGroupsForMember(
   ) as unknown[];
 
   const base64 = getBase64Encoder();
+  const decoder = getGroupDecoder();
+  // Codama gives a fixed-size decoder; anything of a different length is a
+  // stale account from a previous program layout — skip it rather than let
+  // one bad decode take down the whole list.
+  const expectedSize = (decoder as { fixedSize?: number }).fixedSize;
   const out: GroupAccount[] = [];
   for (const raw of accounts) {
     const entry = raw as {
@@ -102,7 +107,13 @@ export async function getGroupsForMember(
       account: { data: [string, string] };
     };
     const bytes = base64.encode(entry.account.data[0]);
-    const data = getGroupDecoder().decode(bytes);
+    if (expectedSize != null && bytes.length !== expectedSize) continue;
+    let data;
+    try {
+      data = decoder.decode(bytes);
+    } catch {
+      continue;
+    }
     if (data.members.slice(0, data.seatCount).includes(member)) {
       out.push({ address: entry.pubkey, data });
     }

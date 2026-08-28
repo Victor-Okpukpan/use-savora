@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button, Card, Field, PendingBar, input } from "@/components/ui";
 import { ConnectGate, Shell } from "@/components/shell";
 import { RequirePrivy } from "@/components/require-privy";
 import { fetchMaybeGroup } from "@/generated";
+import { useBalances } from "@/lib/savora/balances";
 import { MIN_CYCLE_SECS } from "@/lib/savora/config";
 import { formatUsdc, parseUsdc } from "@/lib/savora/format";
 import { findGroupPda } from "@/lib/savora/pdas";
@@ -59,8 +61,9 @@ export default function NewCirclePage() {
 
 function NewCircleForm() {
   const router = useRouter();
-  const { authenticated, ready } = useConnection();
+  const { authenticated, ready, address } = useConnection();
   const savora = useSavora();
+  const balances = useBalances(address ?? null);
 
   // One seed for the lifetime of this form — a retry must not mint a 2nd circle.
   const [seed] = useState(genSeed);
@@ -97,15 +100,21 @@ function NewCircleForm() {
   const nameBytes = new TextEncoder().encode(name).length;
   const perRotation =
     parsed.value != null ? parsed.value * BigInt(seats - 1) : null;
-  const upfront =
-    parsed.value != null && parsedDeposit.value != null
-      ? parsedDeposit.value + parsed.value
-      : null;
 
   const depositValid =
     parsedDeposit.value != null &&
     parsed.value != null &&
     parsedDeposit.value >= parsed.value;
+
+  // create_group pulls the deposit from the creator's USDC account, which must
+  // already exist and hold at least the deposit.
+  const usdc = balances.data?.usdc ?? null;
+  const sol = balances.data?.sol ?? null;
+  const shortUsdc =
+    parsedDeposit.value != null &&
+    balances.data != null &&
+    (usdc == null || usdc < parsedDeposit.value);
+  const shortSol = sol != null && sol < 5_000_000n; // ~0.005 SOL for fees + rent
 
   const canSubmit =
     authenticated &&
@@ -115,6 +124,8 @@ function NewCircleForm() {
     parsed.value != null &&
     parsed.value > 0n &&
     depositValid &&
+    !shortUsdc &&
+    !shortSol &&
     seats >= 2 &&
     seats <= 12 &&
     rotations >= 1 &&
@@ -276,9 +287,17 @@ function NewCircleForm() {
 
         <div className="flex flex-col gap-2 border-t border-line pt-4 text-[13px]">
           <div className="flex items-baseline justify-between">
-            <span className="text-ink-muted">Due from you now (deposit + round 1)</span>
+            <span className="text-ink-muted">Deposit locked now</span>
             <span className="tnum text-[18px] text-ink">
-              {upfront != null ? `${formatUsdc(upfront)} USDC` : "—"}
+              {parsedDeposit.value != null
+                ? `${formatUsdc(parsedDeposit.value)} USDC`
+                : "—"}
+            </span>
+          </div>
+          <div className="flex items-baseline justify-between text-ink-faint">
+            <span>Then each round</span>
+            <span className="tnum">
+              {parsed.value != null ? `${formatUsdc(parsed.value)} USDC` : "—"}
             </span>
           </div>
           <div className="flex items-baseline justify-between text-ink-faint">
@@ -288,6 +307,26 @@ function NewCircleForm() {
             </span>
           </div>
         </div>
+
+        {shortUsdc ? (
+          <p className="text-[12px] text-warning">
+            You need {parsedDeposit.value != null ? formatUsdc(parsedDeposit.value) : "—"}{" "}
+            USDC to lock the deposit (you have{" "}
+            {usdc == null ? "0" : formatUsdc(usdc)}). Get devnet USDC on your{" "}
+            <Link href="/app/profile" className="text-accent hover:underline">
+              profile
+            </Link>
+            .
+          </p>
+        ) : shortSol ? (
+          <p className="text-[12px] text-warning">
+            Your wallet is low on SOL for fees. Use the airdrop button on your{" "}
+            <Link href="/app/profile" className="text-accent hover:underline">
+              profile
+            </Link>
+            .
+          </p>
+        ) : null}
 
         {error ? <p className="text-[12px] text-danger">{error}</p> : null}
 
