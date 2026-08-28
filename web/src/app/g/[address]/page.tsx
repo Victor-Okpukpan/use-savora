@@ -9,7 +9,6 @@ import type { Cycle, Group } from "@/generated";
 
 import { ActivityFeed } from "@/components/activity-feed";
 import { ConnectGate, Shell } from "@/components/shell";
-import { DevnetFaucet } from "@/components/devnet-faucet";
 import { InviteLink } from "@/components/invite-link";
 import { PoolMeter } from "@/components/pool-meter";
 import { PositionSummary } from "@/components/position-summary";
@@ -258,7 +257,13 @@ function GroupDetail() {
         </section>
       ) : null}
 
-      <DevnetFaucet address={me!} />
+      <p className="text-[12px] text-ink-faint">
+        Need devnet SOL or USDC?{" "}
+        <Link href="/app/profile" className="text-accent hover:underline">
+          Fund your wallet
+        </Link>{" "}
+        on your profile.
+      </p>
     </Fade>
   );
 }

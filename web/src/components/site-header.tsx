@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ConnectButton } from "./connect-button";
+import { ThemeToggle } from "./theme-toggle";
 import { Wordmark } from "./wordmark";
 
 export function SiteHeader({ wide = true }: { wide?: boolean }) {
@@ -27,7 +28,8 @@ export function SiteHeader({ wide = true }: { wide?: boolean }) {
           >
             Docs
           </Link>
-          <span className="ml-2">
+          <ThemeToggle />
+          <span className="ml-1.5">
             <ConnectButton shape="pill" />
           </span>
         </nav>

@@ -50,15 +50,17 @@ function ConnectButtonLive({ base, label }: { base: string; label: string }) {
   const { login, logout, authenticated, ready } = usePrivy();
   const { address } = useConnection();
 
+  // Demo mode has no session to sign out of. Render it visibly disabled rather
+  // than as something that mimics a signed-in button and does nothing.
   if (DEMO) {
     return (
-      <span
-        className={`${base} border border-line bg-surface text-ink`}
-        title="Demo mode"
+      <button
+        disabled
+        title="Demo mode — sign-in disabled"
+        className={`${base} border border-dashed border-line bg-surface text-ink-faint`}
       >
-        <span className="size-1.5 rounded-full bg-accent" />
-        <span className="addr">{shortAddress(address ?? "")}</span>
-      </span>
+        Demo
+      </button>
     );
   }
 
@@ -66,7 +68,11 @@ function ConnectButtonLive({ base, label }: { base: string; label: string }) {
     return <span className={`${base} bg-surface-sunk`} aria-hidden />;
   }
 
-  if (authenticated && address) {
+  // Authenticated is the only condition that matters for signing out. The
+  // Solana wallet can lag behind it (the embedded wallet is created just after
+  // login), and gating on the wallet here used to strand the user on a
+  // "Connect" button whose login() is a no-op once already signed in.
+  if (authenticated) {
     return (
       <motion.button
         {...press}
@@ -74,8 +80,12 @@ function ConnectButtonLive({ base, label }: { base: string; label: string }) {
         className={`${base} border border-line bg-surface text-ink hover:bg-surface-sunk`}
         title="Sign out"
       >
-        <span className="size-1.5 rounded-full bg-accent" />
-        <span className="addr">{shortAddress(address)}</span>
+        <span
+          className={`size-1.5 rounded-full ${address ? "bg-accent" : "bg-line-strong"}`}
+        />
+        <span className="addr">
+          {address ? shortAddress(address) : "Signing in…"}
+        </span>
       </motion.button>
     );
   }

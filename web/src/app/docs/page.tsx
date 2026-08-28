@@ -2,7 +2,14 @@ import type { Metadata } from "next";
 
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { PROGRAM_ID, USDC_MINT, explorerUrl } from "@/lib/savora/config";
+import {
+  IDL_ACCOUNT,
+  PROGRAM_DATA,
+  PROGRAM_ID,
+  UPGRADE_AUTHORITY,
+  USDC_MINT,
+  explorerUrl,
+} from "@/lib/savora/config";
 import { DocNav } from "./nav";
 
 export const metadata: Metadata = {
@@ -121,8 +128,8 @@ export default function DocsPage() {
             </P>
             <P>
               This deployment runs on Solana <B>devnet</B>. A new wallet has no
-              SOL for transaction fees — the circle page has an airdrop button —
-              and test USDC comes from{" "}
+              SOL for transaction fees — your profile page has an airdrop button
+              — and test USDC comes from{" "}
               <A href="https://faucet.circle.com">Circle&rsquo;s faucet</A>.
             </P>
           </Section>
@@ -211,8 +218,21 @@ disburse_payout()     permissionless crank; recipient fixed by rotation`}</Pre>
             <P className="mt-5">
               Program <A href={explorerUrl(PROGRAM_ID)}>{PROGRAM_ID}</A>
               <br />
+              Program data{" "}
+              <A href={explorerUrl(PROGRAM_DATA)}>{PROGRAM_DATA}</A>
+              <br />
+              Upgrade authority{" "}
+              <A href={explorerUrl(UPGRADE_AUTHORITY)}>{UPGRADE_AUTHORITY}</A>
+              <br />
+              IDL account <A href={explorerUrl(IDL_ACCOUNT)}>{IDL_ACCOUNT}</A>
+              <br />
               Devnet USDC mint{" "}
               <A href={explorerUrl(USDC_MINT)}>{USDC_MINT}</A>
+            </P>
+            <P className="mt-4 text-[13px] text-ink-faint">
+              Deployed to devnet in slot 489374645. The program is upgradeable by
+              the authority above; a production release would set it to a
+              multisig or burn it.
             </P>
           </Section>
 

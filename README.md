@@ -19,7 +19,7 @@ scripts/codegen.ts    Codama: IDL → typed @solana/kit client
 web/                  Next.js 16 app (App Router, Tailwind v4, Privy, motion)
   src/generated/      generated client — do not edit, run `pnpm codegen`
   src/lib/savora/     PDAs, instruction builders, queries, tx sending
-  src/app/            /  ·  /app  ·  /app/new  ·  /g/[address]
+  src/app/            /  ·  /app (Circles · Activity · Profile)  ·  /app/new  ·  /g/[address]  ·  /docs
 ```
 
 ## How it works
@@ -31,30 +31,71 @@ web/                  Next.js 16 app (App Router, Tailwind v4, Privy, motion)
 | **Payout** | Purely permissionless crank (`disburse_payout`). Any signer triggers it once the cycle is funded — or once its deadline passes. The recipient is fixed by rotation order; the recipient token account is constrained to that member and `group.mint`, so the caller cannot redirect funds. |
 | **Defaults** | After the deadline the crank pays out whatever was pooled and writes each missed contribution against that member (`Group.missed`). The rotation never stalls; enforcement is social and visible. |
 
+## Deployment — Solana devnet
+
+| | |
+|---|---|
+| **Program ID** | `BbXwxUfyF2xZydVZRhFZ5Fp5KALf9bgYEZvi7b3bhtG2` |
+| **ProgramData** | `JAvBqYpG9MoiR6iwYherdHchWDjg7CzMo3indGYCDk5w` |
+| **Upgrade authority** | `AL3LxYBsFcShcGq7kuQSA4mN8dSVKyvNQdHsQE9WT7VX` |
+| **IDL account** | `GVjyn6Gbn9dTr8AVdJzArD6YGr9e8xzndWcryghfstMD` |
+| **Cluster** | devnet · first deployed in slot 489374645 · 334 992 bytes |
+| **USDC mint** | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` (Circle devnet, 6 decimals) — faucet at <https://faucet.circle.com> |
+
+Explorer: <https://explorer.solana.com/address/BbXwxUfyF2xZydVZRhFZ5Fp5KALf9bgYEZvi7b3bhtG2?cluster=devnet>
+
+The program ID is hardcoded in `declare_id!` ([`programs/savora/src/lib.rs`](programs/savora/src/lib.rs)) and flows to the frontend through the generated client (`web/src/lib/savora/config.ts` → `SAVORA_PROGRAM_ADDRESS`).
+
+### Redeploying the program
+
+The public devnet RPC rate-limits large uploads; use a dedicated endpoint
+(Alchemy / Helius / Triton free tier) as `--provider.cluster` or in
+`solana config set --url`.
+
+```bash
+# from repo root, with `solana config` already pointed at a dedicated RPC
+anchor build
+solana program deploy \
+  --program-id target/deploy/savora-keypair.json \
+  --with-compute-unit-price 50000 --max-sign-attempts 100 \
+  target/deploy/savora.so
+
+# IDL (run once after the first deploy; use `anchor idl upgrade` thereafter)
+anchor idl upgrade BbXwxUfyF2xZydVZRhFZ5Fp5KALf9bgYEZvi7b3bhtG2 \
+  --filepath target/idl/savora.json \
+  --provider.cluster "$(solana config get | awk '/RPC URL/{print $3}')" \
+  --provider.wallet ~/.config/solana/id.json
+```
+
+If a deploy is interrupted it leaves a funded buffer; resume with
+`solana program deploy --buffer <buffer-keypair.json> …`, or reclaim the rent
+with `solana program close <buffer-address> --recipient <your-wallet>`.
+
 ## Develop
 
 ```bash
 # program
 anchor build
-pnpm codegen                 # regenerate web/src/generated from the IDL
-pnpm test:program            # LiteSVM suite (loads target/deploy/savora.so)
-
-# deploy (devnet)
-anchor deploy --provider.cluster devnet
-# confirm the program id matches declare_id! and web/src/lib/savora/config.ts
+pnpm codegen                 # regenerate web/src/generated from target/idl/savora.json
+pnpm test:program            # LiteSVM suite (loads target/deploy/savora.so) — 9 tests
 
 # web
 cd web
-cp .env.example .env.local   # set NEXT_PUBLIC_PRIVY_APP_ID (dashboard.privy.io)
-pnpm dev
+cp .env.example .env.local   # fill NEXT_PUBLIC_PRIVY_APP_ID + your RPC URL
+pnpm dev                     # http://localhost:3000
 ```
 
-`NEXT_PUBLIC_SAVORA_DEMO=1 pnpm dev` renders the full UI from fixtures (still
-needs a Privy app id, but no wallet funds or live program).
+`NEXT_PUBLIC_SAVORA_DEMO=1 pnpm dev` renders the full UI from fixtures — still
+needs a Privy app id, but no wallet funds or live program.
 
-Devnet USDC: mint `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`, faucet at
-<https://faucet.circle.com>. Embedded-wallet users start with zero SOL — the
-group page has a devnet SOL airdrop button for fees.
+Embedded-wallet users start with zero SOL for fees; the profile page has a
+devnet SOL airdrop button and a link to Circle's USDC faucet.
+
+## Deploy the web app
+
+See [`web/README.md`](web/README.md). In short: `cd web && vercel`, set the
+three `NEXT_PUBLIC_*` env vars, `vercel --prod`, then whitelist the domain in
+the Privy dashboard.
 
 ## Stack
 

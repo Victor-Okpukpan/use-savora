@@ -7,6 +7,7 @@ import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MotionConfig } from "motion/react";
 
+import { CursorRing } from "@/components/cursor-ring";
 import { rpc, rpcSubscriptions } from "@/lib/savora/rpc";
 import { SOLANA_CHAIN } from "@/lib/savora/config";
 
@@ -30,9 +31,22 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }),
   );
 
+  // Match the Privy modal to the OS theme on first load (it doesn't follow the
+  // in-session toggle, but this keeps it from opening jarringly light on a
+  // dark-OS visitor). Resolved once.
+  const [privyTheme] = useState<"light" | "dark">(() =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light",
+  );
+
   const inner = (
     <QueryClientProvider client={queryClient}>
-      <MotionConfig reducedMotion="user">{children}</MotionConfig>
+      <MotionConfig reducedMotion="user">
+        <CursorRing />
+        {children}
+      </MotionConfig>
     </QueryClientProvider>
   );
 
@@ -53,8 +67,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
         config={{
           loginMethods: ["email", "google", "wallet"],
           appearance: {
-            theme: "#fbfaf7",
-            accentColor: "#1f4d3d",
+            theme: privyTheme,
+            accentColor: "#1f5741",
             walletChainType: "solana-only",
             showWalletLoginFirst: false,
             landingHeader: "Join your circle",

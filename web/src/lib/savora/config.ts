@@ -5,6 +5,21 @@ import { SAVORA_PROGRAM_ADDRESS } from "@/generated";
 /** Deployed Savora program. Matches `declare_id!` in `programs/savora`. */
 export const PROGRAM_ID = SAVORA_PROGRAM_ADDRESS;
 
+/* ---- devnet deployment record (see repo README) ---- */
+
+/** The program's data account (holds the executable + upgrade slot). */
+export const PROGRAM_DATA =
+  "JAvBqYpG9MoiR6iwYherdHchWDjg7CzMo3indGYCDk5w" as Address;
+
+/** Current upgrade authority. A production release would move this to a
+ *  multisig or set it to null. */
+export const UPGRADE_AUTHORITY =
+  "AL3LxYBsFcShcGq7kuQSA4mN8dSVKyvNQdHsQE9WT7VX" as Address;
+
+/** On-chain Anchor IDL account (`anchor idl fetch` reads this). */
+export const IDL_ACCOUNT =
+  "GVjyn6Gbn9dTr8AVdJzArD6YGr9e8xzndWcryghfstMD" as Address;
+
 /**
  * Circle USDC on devnet (6 decimals). Fund a wallet from
  * https://faucet.circle.com (select "Solana Devnet").

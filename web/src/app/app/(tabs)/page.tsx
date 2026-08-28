@@ -6,38 +6,20 @@ import type { Address } from "@solana/kit";
 
 import { MemberMark } from "@/components/member-identity";
 import { Button, Card, Fade } from "@/components/ui";
-import { ConnectGate, Shell } from "@/components/shell";
-import { RequirePrivy } from "@/components/require-privy";
+import { ConnectGate } from "@/components/shell";
 import { decodeName, formatUsdc, rotationPosition } from "@/lib/savora/format";
-import { useMyGroups } from "@/lib/savora/hooks";
+import { useCurrentCycles, useMyGroups, useNow } from "@/lib/savora/hooks";
+import type { CycleAccount } from "@/lib/savora/hooks";
 import { useConnection } from "@/lib/savora/use-savora";
 import type { GroupAccount } from "@/lib/savora/queries";
 
 const STATUS_LABEL = ["Forming", "Active", "Completed"] as const;
 
-export default function AppPage() {
-  return (
-    <Shell width="max-w-reading">
-      <div className="flex items-center justify-between">
-        <h1 className="font-serif text-[34px] leading-none text-ink">
-          Your circles
-        </h1>
-        <Link href="/app/new">
-          <Button variant="secondary">New circle</Button>
-        </Link>
-      </div>
-      <div className="mt-8">
-        <RequirePrivy>
-          <MyCircles />
-        </RequirePrivy>
-      </div>
-    </Shell>
-  );
-}
-
-function MyCircles() {
+export default function CirclesTab() {
   const { authenticated, ready, address } = useConnection();
   const groups = useMyGroups(address);
+  const cycles = useCurrentCycles(groups.data);
+  const now = useNow();
 
   if (!ready) return null;
   if (!authenticated) return <ConnectGate />;
@@ -62,24 +44,97 @@ function MyCircles() {
     );
   }
 
+  const me = address!;
+  const todos = data
+    .map((g) => actionFor(g, cycles.byGroup.get(g.address) ?? null, me, now))
+    .filter((t): t is Todo => t !== null);
+
   return (
-    <div className="flex flex-col gap-6">
-      <AggregateBar groups={data} me={address!} />
-      <ul className="flex flex-col gap-2.5">
-        {data.map((g) => (
-          <li key={g.address}>
-            <Fade>
-              <GroupRow group={g} me={address!} />
-            </Fade>
-          </li>
-        ))}
-      </ul>
+    <div className="flex flex-col gap-8">
+      <AggregateBar groups={data} me={me} />
+
+      {todos.length > 0 ? (
+        <section>
+          <h2 className="micro mb-2.5">Needs you</h2>
+          <ul className="flex flex-col gap-2">
+            {todos.map((t) => (
+              <li key={t.address}>
+                <Link
+                  href={`/g/${t.address}`}
+                  className="flex items-center justify-between gap-3 rounded-card border border-accent/30 bg-accent/5 px-4 py-3 transition-colors hover:bg-accent/10"
+                >
+                  <span className="flex items-center gap-2 text-[13px]">
+                    <span className="size-1.5 rounded-full bg-accent" />
+                    <span className="font-medium text-ink">{t.circle}</span>
+                    <span className="text-ink-muted">{t.text}</span>
+                  </span>
+                  <span className="text-[12px] text-accent">→</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <section>
+        <h2 className="micro mb-2.5">Your circles</h2>
+        <ul className="flex flex-col gap-2.5">
+          {data.map((g) => (
+            <li key={g.address}>
+              <Fade>
+                <GroupRow group={g} me={me} />
+              </Fade>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <p className="text-[12px] text-ink-faint">
         Joining someone else&rsquo;s circle? Open the{" "}
         <span className="addr">/g/…</span> invite link they sent you.
       </p>
     </div>
   );
+}
+
+type Todo = { address: string; circle: string; text: string };
+
+/** What (if anything) this circle needs from the viewer right now. */
+function actionFor(
+  group: GroupAccount,
+  cycle: CycleAccount | null,
+  me: string,
+  now: number,
+): Todo | null {
+  const d = group.data;
+  const circle = decodeName(d.name) || "Untitled circle";
+  const idx = d.members.slice(0, d.memberCount).indexOf(me as never);
+
+  if (d.status === 0) {
+    if (idx === 0 && d.memberCount < d.capacity)
+      return { address: group.address, circle, text: "share the invite link" };
+    return null;
+  }
+  if (d.status !== 1 || !cycle) return null;
+
+  const funded = cycle.data.contributorCount === d.memberCount;
+  const pastDeadline = now > Number(cycle.data.deadline);
+  const crankable = !cycle.data.disbursed && (funded || pastDeadline);
+  const iPaid = idx >= 0 && (cycle.data.contributed & (1 << idx)) !== 0;
+
+  if (crankable)
+    return {
+      address: group.address,
+      circle,
+      text: funded ? "round is funded — send the payout" : "deadline passed — crank it",
+    };
+  if (idx >= 0 && !iPaid)
+    return {
+      address: group.address,
+      circle,
+      text: `contribute ${formatUsdc(d.contribution)} USDC`,
+    };
+  return null;
 }
 
 function AggregateBar({ groups, me }: { groups: GroupAccount[]; me: string }) {
@@ -95,9 +150,9 @@ function AggregateBar({ groups, me }: { groups: GroupAccount[]; me: string }) {
     collect += d.contribution * BigInt(d.memberCount);
     const pos = rotationPosition(d.rotation, idx, d.memberCount);
     if (d.status === 1 && pos != null) {
-      const now = pos - 1 === d.currentCycle;
+      const isNow = pos - 1 === d.currentCycle;
       const upcoming = pos - 1 > d.currentCycle;
-      if (now && (!next || !next.now)) {
+      if (isNow && (!next || !next.now)) {
         next = { name: decodeName(d.name), round: pos, now: true };
       } else if (upcoming && !next) {
         next = { name: decodeName(d.name), round: pos, now: false };
@@ -107,8 +162,8 @@ function AggregateBar({ groups, me }: { groups: GroupAccount[]; me: string }) {
 
   const cells = [
     { label: "Circles", value: `${groups.length}` },
-    { label: "Per round", value: `${formatUsdc(perRound, { fixed: true })}`, sub: "USDC" },
-    { label: "You collect", value: `${formatUsdc(collect, { fixed: true })}`, sub: "USDC total" },
+    { label: "Per round", value: formatUsdc(perRound, { fixed: true }), sub: "USDC" },
+    { label: "You collect", value: formatUsdc(collect, { fixed: true }), sub: "USDC total" },
     {
       label: "Next turn",
       value: next ? (next.now ? "Now" : `Round ${next.round}`) : "—",
@@ -173,10 +228,7 @@ function GroupRow({ group, me }: { group: GroupAccount; me: string }) {
       <div className="flex shrink-0 items-center gap-3">
         <div className="hidden -space-x-1 sm:flex">
           {members.slice(0, 4).map((m) => (
-            <span
-              key={m}
-              className="rounded-full bg-surface p-0.5"
-            >
+            <span key={m} className="rounded-full bg-surface p-0.5">
               <MemberMark address={m} size={16} />
             </span>
           ))}

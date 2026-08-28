@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 
 import type { Address } from "@solana/kit";
 
@@ -14,7 +14,16 @@ import {
   type CycleAccount,
   type GroupAccount,
 } from "./queries";
+import { deriveActivity, type ActivityEvent } from "./activity";
+import { decodeName } from "./format";
 import { DEMO, DEMO_CYCLE, DEMO_GROUP, DEMO_HISTORY } from "./demo";
+
+/** An activity event tagged with the circle it belongs to. */
+export type TaggedEvent = ActivityEvent & {
+  circle: string;
+  groupAddress: string;
+  members: string[];
+};
 
 export function useGroup(address: Address | null) {
   return useQuery({
@@ -42,6 +51,91 @@ export function useCycleHistory(group: GroupAccount | null | undefined) {
     enabled: !!group,
     queryFn: () => (DEMO ? DEMO_HISTORY : getCycleHistory(group as GroupAccount)),
   });
+}
+
+/**
+ * The current `Cycle` for every active group, as one parallel batch. Keyed the
+ * same way as `useCurrentCycle` so the dashboard and the group page share
+ * cache. Returns a map keyed by group address.
+ */
+export function useCurrentCycles(groups: GroupAccount[] | undefined) {
+  const active = useMemo(
+    () => (groups ?? []).filter((g) => g.data.status === 1),
+    [groups],
+  );
+
+  const results = useQueries({
+    queries: active.map((g) => {
+      const index = g.data.currentCycle;
+      return {
+        queryKey: ["cycle", g.address, index],
+        enabled: index < g.data.memberCount,
+        queryFn: () =>
+          DEMO ? DEMO_CYCLE : getCycle(g.address, index),
+        refetchInterval: DEMO ? (false as const) : 15_000,
+      };
+    }),
+  });
+
+  return useMemo(() => {
+    const map = new Map<string, CycleAccount | null>();
+    active.forEach((g, i) => map.set(g.address, results[i]?.data ?? null));
+    return {
+      byGroup: map,
+      isLoading: results.some((r) => r.isLoading),
+    };
+  }, [active, results]);
+}
+
+/**
+ * Every activity event across every circle, newest-first, each tagged with its
+ * circle. One `getCycleHistory` per group, batched.
+ */
+export function useAllActivity(groups: GroupAccount[] | undefined) {
+  const list = useMemo(() => groups ?? [], [groups]);
+
+  const results = useQueries({
+    queries: list.map((g) => ({
+      queryKey: ["cycle-history", g.address, g.data.currentCycle],
+      queryFn: () => (DEMO ? DEMO_HISTORY : getCycleHistory(g)),
+      refetchInterval: DEMO ? (false as const) : 20_000,
+    })),
+  });
+
+  return useMemo(() => {
+    const events: TaggedEvent[] = [];
+    list.forEach((g, i) => {
+      const cycles = results[i]?.data ?? [];
+      const circle = decodeName(g.data.name) || "Untitled circle";
+      const members = g.data.members.slice(0, g.data.memberCount);
+      for (const e of deriveActivity(g, cycles)) {
+        events.push({
+          ...e,
+          key: `${g.address}-${e.key}`,
+          circle,
+          groupAddress: g.address,
+          members,
+        });
+      }
+    });
+    // deriveActivity already returns newest-first per circle; interleave by
+    // round then kind so the merged feed reads roughly chronologically.
+    const rank: Record<ActivityEvent["kind"], number> = {
+      completed: 0,
+      paid: 1,
+      closed: 2,
+      open: 3,
+      missed: 4,
+      sealed: 5,
+    };
+    events.sort((a, b) => {
+      const ra = a.round ?? -1;
+      const rb = b.round ?? -1;
+      if (ra !== rb) return rb - ra;
+      return rank[a.kind] - rank[b.kind];
+    });
+    return { events, isLoading: results.some((r) => r.isLoading) };
+  }, [list, results]);
 }
 
 export function useMyGroups(member: Address | null) {

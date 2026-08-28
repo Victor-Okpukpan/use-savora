@@ -7,11 +7,11 @@ import type { Address } from "@solana/kit";
 import { rpc } from "@/lib/savora/rpc";
 
 /**
- * Devnet only. An embedded-wallet user starts with zero SOL and can't pay
- * transaction fees; USDC has to come from Circle's faucet. Both are surfaced
- * here rather than left as a dead end.
+ * Devnet only. A new embedded-wallet user starts with zero SOL and can't pay
+ * transaction fees; USDC comes from Circle's faucet. Both are surfaced on the
+ * profile so the group pages don't carry a funding strip.
  */
-export function DevnetFaucet({ address }: { address: Address }) {
+export function DevnetFunds({ address }: { address: Address }) {
   const [state, setState] = useState<"idle" | "working" | "done" | "error">(
     "idle",
   );
@@ -27,31 +27,28 @@ export function DevnetFaucet({ address }: { address: Address }) {
   }
 
   return (
-    <div className="rounded-card border border-dashed border-line px-4 py-3 text-[12px] text-ink-muted">
-      <p className="font-medium text-ink">Need funds on devnet?</p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1">
-        <button
-          onClick={airdrop}
-          disabled={state === "working"}
-          className="text-accent underline-offset-2 hover:underline disabled:opacity-40"
-        >
-          {state === "working"
-            ? "Requesting…"
-            : state === "done"
-              ? "1 SOL requested"
-              : state === "error"
-                ? "Faucet busy — try again"
-                : "Airdrop 1 SOL for fees"}
-        </button>
-        <a
-          href="https://faucet.circle.com"
-          target="_blank"
-          rel="noreferrer"
-          className="text-accent underline-offset-2 hover:underline"
-        >
-          Get devnet USDC ↗
-        </a>
-      </div>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px]">
+      <button
+        onClick={airdrop}
+        disabled={state === "working"}
+        className="rounded-control border border-line bg-surface px-3 py-1.5 text-ink transition-colors hover:bg-surface-sunk disabled:opacity-40"
+      >
+        {state === "working"
+          ? "Requesting…"
+          : state === "done"
+            ? "1 SOL requested"
+            : state === "error"
+              ? "Faucet busy — retry"
+              : "Airdrop 1 SOL"}
+      </button>
+      <a
+        href="https://faucet.circle.com"
+        target="_blank"
+        rel="noreferrer"
+        className="text-accent underline-offset-2 hover:underline"
+      >
+        Get devnet USDC ↗
+      </a>
     </div>
   );
 }

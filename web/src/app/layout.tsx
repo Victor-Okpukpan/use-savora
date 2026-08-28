@@ -3,6 +3,7 @@ import { Instrument_Serif, Inter } from "next/font/google";
 
 import "./globals.css";
 import { Providers } from "./providers";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -34,6 +35,9 @@ export default function RootLayout({
       className={`${inter.variable} ${instrumentSerif.variable}`}
       suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-dvh">
         <Providers>{children}</Providers>
       </body>

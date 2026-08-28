@@ -76,9 +76,11 @@ const cycleData: Cycle = {
   index: 1,
   recipientIndex: 0,
   deadline: 1_924_600_000n,
-  pooled: 150_000_000n,
-  contributed: 0b00111,
-  contributorCount: 3,
+  // Members 1 and 2 (Adéwalé, Chidinma) have paid this round; you (member 0),
+  // Ngozi and Emeka have not — so the dashboard surfaces "contribute" for you.
+  pooled: 100_000_000n,
+  contributed: 0b00110,
+  contributorCount: 2,
   disbursed: false,
   payout: 0n,
 };
@@ -88,7 +90,9 @@ export const DEMO_CYCLE: CycleAccount = {
   data: cycleData,
 };
 
+/** Newest-first: the open round 2, then the settled round 1. */
 export const DEMO_HISTORY: CycleAccount[] = [
+  DEMO_CYCLE,
   {
     address: M("Sav0raCyc1e0Demo1111111111111111111111111111"),
     data: {

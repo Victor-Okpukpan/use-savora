@@ -39,6 +39,7 @@ export function addressMark(address: string): Mark {
 import { useSyncExternalStore } from "react";
 
 const NICK_PREFIX = "savora.nick.";
+const ME_KEY = "savora.me";
 const listeners = new Set<() => void>();
 
 function notify() {
@@ -66,21 +67,50 @@ export function setNickname(address: string, nickname: string): void {
   }
 }
 
+/** The viewer's own display name (stored on this device only). */
+export function getMyName(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(ME_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setMyName(name: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const trimmed = name.trim().slice(0, 24);
+    if (trimmed) window.localStorage.setItem(ME_KEY, trimmed);
+    else window.localStorage.removeItem(ME_KEY);
+    notify();
+  } catch {
+    /* private mode — a convenience only */
+  }
+}
+
+function subscribe(onChange: () => void) {
+  listeners.add(onChange);
+  const onStorage = (e: StorageEvent) => {
+    if (!e.key || e.key.startsWith(NICK_PREFIX) || e.key === ME_KEY) onChange();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    listeners.delete(onChange);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
 /** Read the viewer's nickname for an address, reactively. SSR-safe. */
 export function useNickname(address: string): string | null {
   return useSyncExternalStore(
-    (onChange) => {
-      listeners.add(onChange);
-      const onStorage = (e: StorageEvent) => {
-        if (!e.key || e.key.startsWith(NICK_PREFIX)) onChange();
-      };
-      window.addEventListener("storage", onStorage);
-      return () => {
-        listeners.delete(onChange);
-        window.removeEventListener("storage", onStorage);
-      };
-    },
+    subscribe,
     () => getNickname(address),
     () => null,
   );
+}
+
+/** Read the viewer's own display name, reactively. SSR-safe. */
+export function useMyName(): string | null {
+  return useSyncExternalStore(subscribe, getMyName, () => null);
 }
