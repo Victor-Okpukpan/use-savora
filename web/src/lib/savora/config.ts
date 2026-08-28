@@ -32,3 +32,8 @@ export const RPC_SUBSCRIPTIONS_URL =
 
 /** Privy's Solana chain literal for signing + `solana.rpcs` config. */
 export const SOLANA_CHAIN = "solana:devnet" as const;
+
+/** Solana Explorer link for an account or signature (devnet). */
+export function explorerUrl(ref: string, kind: "address" | "tx" = "address") {
+  return `https://explorer.solana.com/${kind}/${ref}?cluster=devnet`;
+}

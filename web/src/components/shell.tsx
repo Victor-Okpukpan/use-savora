@@ -3,15 +3,15 @@ import { SiteHeader } from "./site-header";
 
 export function Shell({
   children,
-  width = "max-w-3xl",
+  width = "max-w-reading",
 }: {
   children: React.ReactNode;
   width?: string;
 }) {
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader />
-      <main className={`mx-auto w-full flex-1 px-5 py-10 ${width}`}>
+      <SiteHeader wide={false} />
+      <main className={`mx-auto w-full flex-1 px-6 py-12 sm:px-8 ${width}`}>
         {children}
       </main>
     </div>

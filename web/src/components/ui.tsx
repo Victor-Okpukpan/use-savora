@@ -4,11 +4,12 @@ import { forwardRef } from "react";
 
 import { motion } from "motion/react";
 
-import { DURATION, EASE, press } from "@/lib/motion";
+import { APP_EASE, DURATION, press } from "@/lib/motion";
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
   size?: "md" | "lg";
+  shape?: "default" | "pill";
   loading?: boolean;
 };
 
@@ -20,16 +21,26 @@ const variants: Record<NonNullable<ButtonProps["variant"]>, string> = {
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = "primary", size = "md", loading, className = "", children, disabled, ...rest },
+  {
+    variant = "primary",
+    size = "md",
+    shape = "default",
+    loading,
+    className = "",
+    children,
+    disabled,
+    ...rest
+  },
   ref,
 ) {
   const sizes = size === "lg" ? "h-11 px-5 text-[14px]" : "h-9 px-4 text-[13px]";
+  const radius = shape === "pill" ? "rounded-pill" : "rounded-control";
   return (
     <motion.button
       ref={ref}
       {...press}
       disabled={disabled || loading}
-      className={`relative inline-flex items-center justify-center gap-2 rounded-control font-medium transition-opacity disabled:opacity-40 disabled:pointer-events-none ${variants[variant]} ${sizes} ${className}`}
+      className={`relative inline-flex items-center justify-center gap-2 ${radius} font-medium transition-opacity disabled:opacity-40 disabled:pointer-events-none ${variants[variant]} ${sizes} ${className}`}
       {...(rest as React.ComponentProps<typeof motion.button>)}
     >
       <span className={loading ? "opacity-0" : "contents"}>{children}</span>
@@ -61,7 +72,7 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-card border border-line bg-surface shadow-[var(--shadow-card)] ${className}`}
+      className={`rounded-card border border-line bg-surface shadow-2 ${className}`}
     >
       {children}
     </div>
@@ -76,7 +87,7 @@ export function PendingBar({ active }: { active: boolean }) {
       <motion.div
         className="h-full w-1/3 bg-accent"
         animate={{ x: ["-100%", "300%"] }}
-        transition={{ duration: 1.1, repeat: Infinity, ease: EASE }}
+        transition={{ duration: 1.1, repeat: Infinity, ease: APP_EASE }}
       />
     </div>
   );
@@ -113,10 +124,8 @@ export function Stat({
   sub?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-[12px] uppercase tracking-[0.06em] text-ink-faint">
-        {label}
-      </span>
+    <div className="flex flex-col gap-1.5">
+      <span className="micro">{label}</span>
       <span className="tnum text-[22px] leading-none text-ink">{value}</span>
       {sub ? <span className="text-[12px] text-ink-muted">{sub}</span> : null}
     </div>
@@ -134,7 +143,7 @@ export function Fade({
     <motion.div
       initial={{ opacity: 0, y: 3 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: DURATION.base, ease: EASE }}
+      transition={{ duration: DURATION.base, ease: APP_EASE }}
       className={className}
     >
       {children}

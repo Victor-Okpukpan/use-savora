@@ -22,7 +22,7 @@ const CYCLE_PRESETS = [
 export default function NewCirclePage() {
   return (
     <Shell>
-      <h1 className="font-serif text-[30px] leading-tight text-ink">
+      <h1 className="font-serif text-[34px] leading-none text-ink">
         Start a circle
       </h1>
       <p className="mt-2 text-[13px] text-ink-muted">

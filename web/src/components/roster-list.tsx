@@ -2,7 +2,7 @@
 
 import type { Address, ReadonlyUint8Array } from "@solana/kit";
 
-import { shortAddress } from "@/lib/savora/format";
+import { MemberIdentity } from "./member-identity";
 
 /**
  * Members in rotation order — the sequence in which they collect. Each row
@@ -18,6 +18,8 @@ export function RosterList({
   currentCycle,
   me,
   contributedMask,
+  labels,
+  editableNicknames = false,
 }: {
   members: Address[];
   rotation: ReadonlyUint8Array | number[];
@@ -27,6 +29,9 @@ export function RosterList({
   currentCycle: number;
   me: string;
   contributedMask: number;
+  /** Display names by member index (demo fixtures only). */
+  labels?: (string | undefined)[];
+  editableNicknames?: boolean;
 }) {
   const order =
     status === 0
@@ -35,15 +40,15 @@ export function RosterList({
 
   return (
     <section>
-      <h2 className="mb-2 text-[13px] font-medium text-ink">
+      <h2 className="micro mb-2.5">
         {status === 0 ? "Members" : "Collection order"}
       </h2>
-      <ol className="overflow-hidden rounded-card border border-line">
+      <ol className="overflow-hidden rounded-card border border-line bg-surface">
         {order.map((memberIndex, round) => {
           const addr = members[memberIndex];
           const isMe = addr === me;
           const isNext = status === 1 && round === currentCycle;
-          const isPast = status === 1 && round < currentCycle;
+          const isPast = status !== 0 && (status === 2 || round < currentCycle);
           const paid = (contributedMask & (1 << memberIndex)) !== 0;
           const miss = missed[memberIndex] ?? 0;
 
@@ -56,19 +61,18 @@ export function RosterList({
           return (
             <li
               key={addr}
-              className={`flex items-center gap-3 border-b border-line px-4 py-3 text-[13px] last:border-0 ${
-                isNext ? "bg-surface-sunk" : ""
+              className={`flex items-center gap-3 border-b border-line px-4 py-3 last:border-0 ${
+                isNext ? "bg-accent/4" : ""
               }`}
             >
               <span
-                className={`tnum w-5 shrink-0 text-right text-[12px] ${
-                  isPast ? "text-ink-faint" : "text-ink-muted"
+                className={`micro w-6 shrink-0 text-right ${
+                  isPast ? "opacity-60" : ""
                 }`}
               >
                 {status === 0 ? "·" : round + 1}
               </span>
 
-              {/* current-round payment status, as a quiet dot */}
               {status === 1 && !isPast ? (
                 <span
                   aria-hidden
@@ -79,22 +83,26 @@ export function RosterList({
                         : "bg-line-strong"
                       : "bg-transparent"
                   }`}
+                  title={
+                    round === currentCycle
+                      ? paid
+                        ? "paid this round"
+                        : "not yet paid"
+                      : undefined
+                  }
                 />
               ) : null}
 
-              <span
-                className={`addr min-w-0 flex-1 truncate ${
-                  isPast ? "text-ink-muted" : "text-ink"
-                }`}
-              >
-                {shortAddress(addr)}
-                {isMe ? (
-                  <span className="ml-2 text-[11px] text-ink-faint">you</span>
-                ) : null}
-              </span>
+              <MemberIdentity
+                address={addr}
+                you={isMe}
+                label={labels?.[memberIndex]}
+                editable={editableNicknames && !isMe}
+                className={`flex-1 ${isPast ? "opacity-70" : ""}`}
+              />
 
               {miss > 0 ? (
-                <span className="shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[11px] text-warning">
+                <span className="shrink-0 rounded-pill border border-line px-1.5 py-0.5 text-[11px] text-warning">
                   {miss}× missed
                 </span>
               ) : null}

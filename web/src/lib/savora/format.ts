@@ -65,6 +65,18 @@ export function shortAddress(address: string, lead = 4, tail = 4): string {
 }
 
 /**
+ * Unix seconds → "Aug 31". Explicit locale so server and client agree
+ * (Node and the browser can have different default locales → hydration
+ * mismatch otherwise).
+ */
+export function formatShortDate(unixSeconds: number | bigint): string {
+  return new Date(Number(unixSeconds) * 1000).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/**
  * Position (1-based) each member holds in the rotation.
  * `rotation[k]` is the member slot that collects in cycle `k`, so member `m`
  * collects in the cycle where `rotation[cycle] === m`.

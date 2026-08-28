@@ -1,23 +1,29 @@
 @import "tailwindcss";
 
 /*
-  Savora — warm-paper quiet-tech.
-  Linear's structural discipline (type hierarchy, spacing rhythm, shadow depth,
+  Savora — warm paper, quiet tech.
+
+  Linear's structural discipline (type scale, spacing rhythm, hairline grid,
   motion timing); none of its colour. The surface is paper, not glass — depth
-  comes from hairlines and one soft shadow, never from glow.
+  comes from a real tonal ladder plus one soft shadow, never from glow.
+
+  Two motion registers live here: `marketing` (scroll-driven, generous) and
+  `app` (near-invisible restraint). See src/lib/motion.ts.
 */
 
 @theme {
-  --color-bg: #fbfaf7;
+  /* Tonal ladder. The page tone sits below the card tone so cards lift. */
+  --color-bg: #f2efe8;
+  --color-raised: #f8f6f1;
   --color-surface: #ffffff;
-  --color-surface-sunk: #f4f2ec;
-  --color-ink: #14140f;
-  --color-ink-muted: #6b6862;
-  --color-ink-faint: #93908a;
-  --color-line: #e8e5de;
-  --color-line-strong: #d8d4ca;
-  --color-accent: #1f4d3d;
-  --color-accent-hover: #1a4234;
+  --color-surface-sunk: #eae6dc;
+  --color-ink: #101008;
+  --color-ink-muted: #5f5c56;
+  --color-ink-faint: #8e8b84;
+  --color-line: #e2ded4;
+  --color-line-strong: #cfcabe;
+  --color-accent: #1c4636;
+  --color-accent-hover: #163a2c;
   --color-accent-contrast: #f6f8f6;
   --color-positive: #1f6f43;
   --color-warning: #9a5b1d;
@@ -28,19 +34,34 @@
     Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-serif:
     var(--font-instrument-serif), ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono:
+    ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
 
   --radius-control: 8px;
   --radius-card: 12px;
   --radius-panel: 16px;
+  --radius-pill: 9999px;
 
-  --shadow-card: 0 1px 2px rgba(20, 20, 15, 0.04), 0 1px 1px rgba(20, 20, 15, 0.03);
-  --shadow-lifted: 0 4px 16px rgba(20, 20, 15, 0.08), 0 1px 3px rgba(20, 20, 15, 0.04);
+  /* Layout widths. */
+  --container-site: 87.5rem; /* 1400px — marketing */
+  --container-reading: 48rem; /* 768px — app + docs body */
+  --container-mock: 56.25rem; /* 900px — hero product mock */
 
-  /* Motion — near-invisible restraint. Felt, never watched. */
-  --ease-standard: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --shadow-1: 0 1px 2px rgba(16, 16, 8, 0.04);
+  --shadow-2: 0 2px 8px rgba(16, 16, 8, 0.06), 0 1px 2px rgba(16, 16, 8, 0.04);
+  --shadow-3:
+    0 12px 32px rgba(16, 16, 8, 0.1), 0 2px 8px rgba(16, 16, 8, 0.05);
+
+  /* App register — felt, never watched. */
+  --ease-app: cubic-bezier(0.25, 0.46, 0.45, 0.94);
   --duration-fast: 120ms;
   --duration-base: 180ms;
   --duration-slow: 240ms;
+
+  /* Marketing register — scroll-driven, generous. */
+  --ease-marketing: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-reveal: 520ms;
+  --duration-settle: 700ms;
 }
 
 :root {
@@ -48,7 +69,7 @@
 
   /* Privy modal, themed through its own variables to match the app. */
   --privy-color-background: var(--color-surface);
-  --privy-color-background-2: var(--color-surface-sunk);
+  --privy-color-background-2: var(--color-raised);
   --privy-color-background-3: var(--color-bg);
   --privy-color-foreground: var(--color-ink);
   --privy-color-foreground-2: var(--color-ink-muted);
@@ -59,7 +80,7 @@
   --privy-color-accent-light: color-mix(in srgb, var(--color-accent) 82%, white);
   --privy-color-accent-lightest: color-mix(in srgb, var(--color-accent) 12%, white);
   --privy-color-accent-dark: var(--color-accent-hover);
-  --privy-color-accent-darkest: #14332a;
+  --privy-color-accent-darkest: #123024;
   --privy-color-success: var(--color-positive);
   --privy-color-error: var(--color-danger);
   --privy-color-error-light: color-mix(in srgb, var(--color-danger) 14%, white);
@@ -69,50 +90,82 @@
   --privy-border-radius-full: 9999px;
 }
 
+/*
+  Dark theme — a full token swap, applied to the whole document.
+*/
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 
-    --color-bg: #0e0e0c;
+    --color-bg: #0b0b09;
+    --color-raised: #141412;
     --color-surface: #191916;
-    --color-surface-sunk: #121210;
-    --color-ink: #ececE6;
+    --color-surface-sunk: #101010;
+    --color-ink: #ecece6;
     --color-ink-muted: #9d9a92;
     --color-ink-faint: #706d66;
     --color-line: #262521;
     --color-line-strong: #33322d;
-    --color-accent: #4a9d7f;
-    --color-accent-hover: #5cae90;
-    --color-accent-contrast: #0c1a15;
-    --color-positive: #4a9d7f;
+    --color-accent: #6fbf9c;
+    --color-accent-hover: #82cdac;
+    --color-accent-contrast: #0a1a13;
+    --color-positive: #6fbf9c;
     --color-warning: #c98a4b;
     --color-danger: #cf6f68;
 
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-lifted: 0 6px 20px rgba(0, 0, 0, 0.4);
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-2: 0 2px 8px rgba(0, 0, 0, 0.35);
+    --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.45);
   }
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --color-bg: #0e0e0c;
+  --color-bg: #0b0b09;
+  --color-raised: #141412;
   --color-surface: #191916;
-  --color-surface-sunk: #121210;
+  --color-surface-sunk: #101010;
   --color-ink: #ecece6;
   --color-ink-muted: #9d9a92;
   --color-ink-faint: #706d66;
   --color-line: #262521;
   --color-line-strong: #33322d;
-  --color-accent: #4a9d7f;
-  --color-accent-hover: #5cae90;
-  --color-accent-contrast: #0c1a15;
-  --color-positive: #4a9d7f;
+  --color-accent: #6fbf9c;
+  --color-accent-hover: #82cdac;
+  --color-accent-contrast: #0a1a13;
+  --color-positive: #6fbf9c;
   --color-warning: #c98a4b;
   --color-danger: #cf6f68;
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-lifted: 0 6px 20px rgba(0, 0, 0, 0.4);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+/*
+  Inverted band — a scoped override, not a theme. One deliberate dark moment
+  on an otherwise light page (closing CTA + footer). Identical in both themes,
+  so the band reads the same way whichever theme the viewer is in.
+*/
+[data-surface="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #0e0e0c;
+  --color-raised: #171714;
+  --color-surface: #171714;
+  --color-surface-sunk: #0a0a08;
+  --color-ink: #f4f2ec;
+  --color-ink-muted: #a3a099;
+  --color-ink-faint: #74716a;
+  --color-line: #24231f;
+  --color-line-strong: #33322d;
+  --color-accent: #6fbf9c;
+  --color-accent-hover: #82cdac;
+  --color-accent-contrast: #0a1a13;
+
+  background: var(--color-bg);
+  color: var(--color-ink);
 }
 
 * {
@@ -137,9 +190,43 @@ body {
   background: color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
 
+/* ---- Type utilities ---- */
+
 .font-serif {
   font-family: var(--font-serif);
   letter-spacing: 0;
+}
+
+/* Display scale. Serif carries display-1; the rest is Inter. */
+.display-1 {
+  font-family: var(--font-serif);
+  font-size: clamp(3rem, 7.6vw, 7rem);
+  line-height: 0.96;
+  letter-spacing: -0.018em;
+}
+
+.display-2 {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  font-weight: 500;
+}
+
+.display-3 {
+  font-size: clamp(1.5rem, 2.4vw, 2.125rem);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  font-weight: 500;
+}
+
+/* Monospace micro-label — the technical-drawing register. */
+.micro {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
 }
 
 .tnum {
@@ -149,6 +236,11 @@ body {
 .addr {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
+}
+
+/* Hairline grid: dividers that disappear at the edges of a wrapped row. */
+.rule-y {
+  border-left: 1px solid var(--color-line);
 }
 
 @media (prefers-reduced-motion: reduce) {

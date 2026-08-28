@@ -5,22 +5,36 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 
 import type { Address } from "@solana/kit";
+import type { Cycle, Group } from "@/generated";
 
-import { Button, Card, Fade, PendingBar, Stat } from "@/components/ui";
+import { ActivityFeed } from "@/components/activity-feed";
 import { ConnectGate, Shell } from "@/components/shell";
-import { RequirePrivy } from "@/components/require-privy";
 import { DevnetFaucet } from "@/components/devnet-faucet";
 import { InviteLink } from "@/components/invite-link";
+import { PoolMeter } from "@/components/pool-meter";
+import { PositionSummary } from "@/components/position-summary";
+import { RequirePrivy } from "@/components/require-privy";
 import { RosterList } from "@/components/roster-list";
-import { formatUsdc, decodeName, shortAddress } from "@/lib/savora/format";
+import { RotationTrack } from "@/components/rotation-track";
+import { Button, Card, Fade, PendingBar } from "@/components/ui";
+import { deriveActivity, totalMissed } from "@/lib/savora/activity";
+import { DEMO, DEMO_LABELS } from "@/lib/savora/demo";
+import {
+  decodeName,
+  formatShortDate,
+  formatUsdc,
+  shortAddress,
+} from "@/lib/savora/format";
 import {
   useCurrentCycle,
   useCycleHistory,
   useGroup,
   useNow,
 } from "@/lib/savora/hooks";
+import { computePosition } from "@/lib/savora/position";
 import { useConnection, useSavora } from "@/lib/savora/use-savora";
-import type { Cycle, Group } from "@/generated";
+
+const STATUS = ["Forming", "Active", "Completed"] as const;
 
 type GroupView = {
   d: Group;
@@ -38,7 +52,7 @@ type GroupView = {
 
 export default function GroupPage() {
   return (
-    <Shell width="max-w-3xl">
+    <Shell width="max-w-reading">
       <RequirePrivy>
         <GroupDetail />
       </RequirePrivy>
@@ -60,6 +74,8 @@ function GroupDetail() {
 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const labels = DEMO ? DEMO_LABELS : undefined;
 
   const refresh = () => {
     groupQ.refetch();
@@ -88,12 +104,13 @@ function GroupDetail() {
     const cycle = cycleQ.data?.data ?? null;
     const cycleExists = !!cycleQ.data;
     const iPaid = cycle ? (cycle.contributed & (1 << myIndex)) !== 0 : false;
-    const funded = cycle
-      ? cycle.contributorCount === d.memberCount
-      : false;
+    const funded = cycle ? cycle.contributorCount === d.memberCount : false;
     const pastDeadline = cycle ? nowSec > Number(cycle.deadline) : false;
     const crankable =
-      d.status === 1 && cycle != null && !cycle.disbursed && (funded || pastDeadline);
+      d.status === 1 &&
+      cycle != null &&
+      !cycle.disbursed &&
+      (funded || pastDeadline);
     const recipientIndex = cycle
       ? cycle.recipientIndex
       : d.status === 1
@@ -114,135 +131,135 @@ function GroupDetail() {
     };
   }, [group, me, cycleQ.data, nowSec]);
 
+  const position = useMemo(() => {
+    if (!group || !me || !historyQ.data) return null;
+    return computePosition(group, historyQ.data, me);
+  }, [group, me, historyQ.data]);
+
+  const events = useMemo(() => {
+    if (!group || !historyQ.data) return [];
+    return deriveActivity(group, historyQ.data);
+  }, [group, historyQ.data]);
+
   if (!ready) return null;
+  if (!authenticated) return <ConnectGate />;
+  if (groupQ.isLoading)
+    return <p className="text-[13px] text-ink-muted">Loading circle…</p>;
+  if (!group)
+    return (
+      <Card className="p-8 text-center">
+        <h2 className="text-[15px] font-medium text-ink">Circle not found</h2>
+        <p className="mt-2 text-[13px] text-ink-muted">
+          This invite link doesn&rsquo;t point to a circle on devnet.
+        </p>
+        <div className="mt-4 flex justify-center">
+          <Link href="/app">
+            <Button variant="secondary">Back to your circles</Button>
+          </Link>
+        </div>
+      </Card>
+    );
+  if (!view) return null;
+
+  const d = view.d;
+  const members = d.members.slice(0, d.memberCount) as Address[];
+  const target = d.contribution * BigInt(d.memberCount);
+  const missed = totalMissed(group);
 
   return (
-    <>
-      {!authenticated ? (
-        <ConnectGate />
-      ) : groupQ.isLoading ? (
-        <p className="text-[13px] text-ink-muted">Loading circle…</p>
-      ) : !group ? (
-        <Card className="p-8 text-center">
-          <h2 className="text-[15px] font-medium text-ink">Circle not found</h2>
-          <p className="mt-2 text-[13px] text-ink-muted">
-            This invite link doesn&rsquo;t point to a circle on devnet.
-          </p>
-          <div className="mt-4 flex justify-center">
-            <Link href="/app">
-              <Button variant="secondary">Back to your circles</Button>
-            </Link>
-          </div>
-        </Card>
-      ) : view ? (
-        <Fade className="flex flex-col gap-6">
-          <header>
-            <div className="flex items-center gap-2">
-              <h1 className="font-serif text-[32px] leading-tight text-ink">
-                {decodeName(view.d.name) || "Untitled circle"}
-              </h1>
-              <span className="rounded-full border border-line px-2 py-0.5 text-[11px] text-ink-muted">
-                {["Forming", "Active", "Completed"][view.d.status]}
-              </span>
-            </div>
-            <p className="mt-1 tnum text-[13px] text-ink-muted">
-              {formatUsdc(view.d.contribution)} USDC per round ·{" "}
-              {view.d.memberCount}/{view.d.capacity} seats
-              {view.d.status === 1
-                ? ` · round ${view.d.currentCycle + 1} of ${view.d.memberCount}`
-                : ""}
-            </p>
-          </header>
+    <Fade className="flex flex-col gap-8">
+      <header>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="font-serif text-[34px] leading-none text-ink">
+            {decodeName(d.name) || "Untitled circle"}
+          </h1>
+          <span className="rounded-pill border border-line px-2 py-0.5 text-[11px] text-ink-muted">
+            {STATUS[d.status]}
+          </span>
+        </div>
+        <p className="tnum mt-2 text-[13px] text-ink-muted">
+          {formatUsdc(d.contribution)} USDC per round · {d.memberCount}/
+          {d.capacity} seats
+          {d.status === 1
+            ? ` · round ${d.currentCycle + 1} of ${d.memberCount}`
+            : ""}
+          {missed > 0 ? ` · ${missed} missed contribution${missed === 1 ? "" : "s"}` : ""}
+        </p>
+      </header>
 
-          {view.d.status === 0 ? (
-            <FormingPanel
-              groupAddress={groupAddress}
-              seatsLeft={view.d.capacity - view.d.memberCount}
-              isMember={view.isMember}
-              isCreator={view.myIndex === 0}
-              busy={busy}
-              onJoin={() =>
-                act("join", () => savora.joinGroup(groupAddress))
-              }
-              onLeave={() =>
-                act("leave", () => savora.leaveGroup(groupAddress))
-              }
-            />
-          ) : (
-            <ActivePanel
-              view={view}
-              busy={busy}
-              onContribute={() =>
-                act("contribute", () =>
-                  savora.contribute(
-                    groupAddress,
-                    view.d.currentCycle,
-                    !view.cycleExists,
-                  ),
-                )
-              }
-              onCrank={() =>
-                act("crank", () =>
-                  savora.disburse(
-                    groupAddress,
-                    view.d.currentCycle,
-                    view.recipient,
-                  ),
-                )
-              }
-            />
-          )}
+      {view.isMember && position ? <PositionSummary position={position} /> : null}
 
-          {error ? (
-            <p className="text-[12px] text-danger">{error}</p>
-          ) : null}
+      {d.status === 0 ? (
+        <FormingPanel
+          groupAddress={groupAddress}
+          seatsLeft={d.capacity - d.memberCount}
+          isMember={view.isMember}
+          isCreator={view.myIndex === 0}
+          busy={busy}
+          onJoin={() => act("join", () => savora.joinGroup(groupAddress))}
+          onLeave={() => act("leave", () => savora.leaveGroup(groupAddress))}
+        />
+      ) : (
+        <ActivePanel
+          view={view}
+          target={target}
+          busy={busy}
+          onContribute={() =>
+            act("contribute", () =>
+              savora.contribute(
+                groupAddress,
+                d.currentCycle,
+                !view.cycleExists,
+              ),
+            )
+          }
+          onCrank={() =>
+            act("crank", () =>
+              savora.disburse(groupAddress, d.currentCycle, view.recipient),
+            )
+          }
+        />
+      )}
 
-          <RosterList
-            members={view.d.members.slice(0, view.d.memberCount) as Address[]}
-            rotation={view.d.rotation}
-            missed={view.d.missed}
-            memberCount={view.d.memberCount}
-            status={view.d.status}
-            currentCycle={view.d.currentCycle}
+      {error ? <p className="text-[12px] text-danger">{error}</p> : null}
+
+      {d.status !== 0 ? (
+        <section>
+          <h2 className="micro mb-2.5">Rotation</h2>
+          <RotationTrack
+            members={members}
+            rotation={d.rotation}
+            memberCount={d.memberCount}
+            currentCycle={d.currentCycle}
+            status={d.status}
             me={me!}
-            contributedMask={view.cycle?.contributed ?? 0}
+            labels={labels}
           />
-
-          {historyQ.data && historyQ.data.length > 0 ? (
-            <section>
-              <h2 className="mb-2 text-[13px] font-medium text-ink">
-                Rounds
-              </h2>
-              <div className="overflow-hidden rounded-card border border-line">
-                {historyQ.data.map((c) => {
-                  const recipient = view.d.members[c.data.recipientIndex];
-                  return (
-                    <div
-                      key={c.data.index}
-                      className="flex items-center justify-between border-b border-line px-4 py-3 text-[13px] last:border-0"
-                    >
-                      <span className="tnum text-ink-muted">
-                        Round {c.data.index + 1}
-                      </span>
-                      <span className="addr text-ink-muted">
-                        {shortAddress(recipient)}
-                      </span>
-                      <span className="tnum text-ink">
-                        {c.data.disbursed
-                          ? `${formatUsdc(c.data.payout)} USDC`
-                          : `${formatUsdc(c.data.pooled)} in`}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
-
-          <DevnetFaucet address={me!} />
-        </Fade>
+        </section>
       ) : null}
-    </>
+
+      <RosterList
+        members={members}
+        rotation={d.rotation}
+        missed={d.missed}
+        memberCount={d.memberCount}
+        status={d.status}
+        currentCycle={d.currentCycle}
+        me={me!}
+        contributedMask={view.cycle?.contributed ?? 0}
+        labels={labels}
+        editableNicknames={!DEMO}
+      />
+
+      {events.length > 0 ? (
+        <section>
+          <h2 className="micro mb-2.5">Activity</h2>
+          <ActivityFeed events={events} members={members} labels={labels} />
+        </section>
+      ) : null}
+
+      <DevnetFaucet address={me!} />
+    </Fade>
   );
 }
 
@@ -280,20 +297,20 @@ function FormingPanel({
         <PendingBar active={!!busy} />
         <div className="flex gap-2">
           {!isMember ? (
-            <Button loading={busy === "join"} disabled={seatsLeft === 0} onClick={onJoin}>
+            <Button
+              loading={busy === "join"}
+              disabled={seatsLeft === 0}
+              onClick={onJoin}
+            >
               Join this circle
             </Button>
           ) : isCreator ? (
             <span className="text-[13px] text-ink-muted">
-              You started this circle. It begins automatically when the last
-              seat fills.
+              You started this circle. It begins automatically when the last seat
+              fills.
             </span>
           ) : (
-            <Button
-              variant="danger"
-              loading={busy === "leave"}
-              onClick={onLeave}
-            >
+            <Button variant="danger" loading={busy === "leave"} onClick={onLeave}>
               Leave
             </Button>
           )}
@@ -301,9 +318,9 @@ function FormingPanel({
 
         <p className="border-t border-line pt-4 text-[12px] leading-[1.7] text-ink-faint">
           When the last seat fills, the collection order is shuffled on-chain and
-          fixed for good — no one picks it. A block producer controlling the
-          exact sealing moment could bias the shuffle; for a circle of people
-          who know each other, that&rsquo;s a trade we make openly.
+          fixed for good — no one picks it. A block producer controlling the exact
+          sealing moment could bias the shuffle; for a circle of people who know
+          each other, that&rsquo;s a trade we make openly.
         </p>
       </div>
     </Card>
@@ -312,11 +329,13 @@ function FormingPanel({
 
 function ActivePanel({
   view,
+  target,
   busy,
   onContribute,
   onCrank,
 }: {
   view: GroupView;
+  target: bigint;
   busy: string | null;
   onContribute: () => void;
   onCrank: () => void;
@@ -334,45 +353,32 @@ function ActivePanel({
   }
 
   const paidCount = cycle?.contributorCount ?? 0;
-  const deadline = cycle ? new Date(Number(cycle.deadline) * 1000) : null;
   const recipient = d.members[view.recipientIndex];
 
   return (
     <Card className="p-6">
-      <div className="mb-5 flex items-center gap-2 border-b border-line pb-4 text-[13px]">
-        <span className="text-ink-muted">Collecting this round</span>
-        <span className="addr font-medium text-ink">
-          {view.recipientIndex === view.myIndex
-            ? "you"
-            : shortAddress(recipient)}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-4">
+        <span className="text-[13px]">
+          <span className="text-ink-muted">Collecting this round · </span>
+          <span className="addr font-medium text-ink">
+            {view.recipientIndex === view.myIndex
+              ? "you"
+              : shortAddress(recipient)}
+          </span>
         </span>
+        {cycle ? (
+          <span className="tnum text-[12px] text-ink-muted">
+            deadline {formatShortDate(cycle.deadline)}
+          </span>
+        ) : null}
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-3">
-        <Stat
-          label="This round"
-          value={formatUsdc(cycle?.pooled ?? 0n, { fixed: true })}
-          sub={`of ${formatUsdc(d.contribution * BigInt(d.memberCount), { fixed: true })} USDC`}
-        />
-        <Stat label="Paid in" value={`${paidCount}/${d.memberCount}`} />
-        <Stat
-          label="Deadline"
-          value={
-            deadline
-              ? deadline.toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                })
-              : "—"
-          }
-          sub={
-            deadline
-              ? deadline.toLocaleTimeString(undefined, {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })
-              : undefined
-          }
+      <div className="pt-5">
+        <PoolMeter
+          pooled={cycle?.pooled ?? 0n}
+          target={target}
+          paidCount={paidCount}
+          memberCount={d.memberCount}
         />
       </div>
 
@@ -407,8 +413,8 @@ function ActivePanel({
           </>
         ) : iPaid ? (
           <p className="text-[13px] text-ink-muted">
-            You&rsquo;ve paid this round. Waiting on{" "}
-            {d.memberCount - paidCount} more.
+            You&rsquo;ve paid this round. Waiting on {d.memberCount - paidCount}{" "}
+            more.
           </p>
         ) : (
           <Button loading={busy === "contribute"} onClick={onContribute}>
@@ -419,4 +425,3 @@ function ActivePanel({
     </Card>
   );
 }
-

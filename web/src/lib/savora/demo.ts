@@ -28,6 +28,18 @@ const members: Address[] = [
   M("5tXcVJyUBc7Yx2Zb9Vc1Nd3Pf5Gh7Jk9Ll1Mm3Nn5Qp"),
 ];
 
+/**
+ * Names shown in the demo. These are attached to *fixture* wallets, not real
+ * strangers — the live app only ever shows a nickname the viewer set.
+ */
+export const DEMO_LABELS: (string | undefined)[] = [
+  "Tòlú",
+  "Adéwalé",
+  "Chidinma",
+  "Ngozi",
+  "Emeka",
+];
+
 export const DEMO_GROUP_ADDRESS =
   "Sav0raC1rc1eDemo111111111111111111111111111" as Address;
 
@@ -48,7 +60,8 @@ const groupData: Group = {
   missed: [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
   status: 1,
   currentCycle: 1,
-  cycleStart: BigInt(Math.floor(Date.now() / 1000) - 172_800),
+  // Fixed epochs so the demo renders identically on server and client.
+  cycleStart: 1_924_000_000n,
 };
 
 export const DEMO_GROUP: GroupAccount = {
@@ -62,7 +75,7 @@ const cycleData: Cycle = {
   group: DEMO_GROUP_ADDRESS,
   index: 1,
   recipientIndex: 0,
-  deadline: BigInt(Math.floor(Date.now() / 1000) + 3 * 86_400),
+  deadline: 1_924_600_000n,
   pooled: 150_000_000n,
   contributed: 0b00111,
   contributorCount: 3,
