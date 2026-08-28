@@ -13,7 +13,7 @@ import {
 import { DocNav } from "./nav";
 
 const DOCS_DESCRIPTION =
-  "How Savora works — in plain language and at the protocol level: the vault, the shuffle, the crank, the guarantees.";
+  "How Savora works, in plain language and at the protocol level: the vault, deposits, the shuffle, grace and ejection, the guarantees.";
 
 export const metadata: Metadata = {
   title: "Docs",
@@ -38,10 +38,11 @@ const NAV: { heading: string; id: string; items: [string, string][] }[] = [
     items: [
       ["ajo-onchain", "Ajo, onchain"],
       ["starting", "Starting a circle"],
-      ["joining", "Joining by invite link"],
+      ["joining", "Joining & the deposit"],
       ["contributing", "Contributing each round"],
       ["collecting", "Collecting your turn"],
-      ["missing", "If someone misses a round"],
+      ["missing", "Grace, defaults & ejection"],
+      ["extending", "Running it again"],
       ["wallet", "Getting a wallet & devnet funds"],
     ],
   },
@@ -51,7 +52,7 @@ const NAV: { heading: string; id: string; items: [string, string][] }[] = [
     items: [
       ["custody", "Where the money sits"],
       ["shuffle", "The rotation shuffle"],
-      ["crank", "The permissionless crank"],
+      ["crank", "Auto-payout & the crank"],
       ["accounts", "Accounts"],
       ["instructions", "Instructions & PDAs"],
       ["cannot", "What Savora cannot do"],
@@ -89,47 +90,75 @@ export default function DocsPage() {
 
           <Section id="starting" title="Starting a circle">
             <P>
-              Set four things: the contribution amount in USDC, the number of
-              seats (2–12), how long each round runs, and a name. You become the
-              first member. The circle is in <B>Forming</B> until every seat is
-              taken.
+              Set the contribution amount, the security deposit (at least one
+              contribution), the number of seats (2–12), how long each round
+              runs, the grace window after each deadline, how many full rotations
+              to run, and a name. You become the first member and lock your
+              deposit. The circle is in <B>Forming</B> until every seat is taken.
             </P>
           </Section>
 
-          <Section id="joining" title="Joining by invite link">
+          <Section id="joining" title="Joining & the deposit">
             <P>
               Every circle has a link — <Code>/g/&lt;address&gt;</Code>. Anyone
-              with it can join while seats remain. When the last seat fills, the
-              circle <B>seals itself</B> in the same transaction: the collection
-              order is shuffled onchain and round&nbsp;1 opens. Before a circle
-              seals, any member except the creator can leave.
+              with it can join while seats remain. Joining locks a{" "}
+              <B>security deposit</B> plus your first round&rsquo;s contribution.
+              When the last seat fills, the circle goes <B>Active</B>; the first
+              <Code>open_cycle</Code> shuffles the order and opens round&nbsp;1.
+              Before a circle seals, any member except the creator can leave and
+              get their deposit back; the creator can close an empty circle.
+            </P>
+            <P>
+              The deposit is refunded when the circle finishes and you withdraw.
+              It is forfeited only if you miss a round. One round&rsquo;s deposit
+              covers exactly one missed round — it does <B>not</B> cover the loan
+              a member walks away with if they stop paying after collecting, so a
+              circle that wants more assurance can set a larger deposit.
             </P>
           </Section>
 
           <Section id="contributing" title="Contributing each round">
             <P>
-              Each round you send the fixed amount to the vault. Late is fine —
-              a contribution is accepted any time before the round is paid out,
-              deadline or not. You cannot contribute twice to the same round.
+              Each round you send the fixed amount to the vault. Late is fine up
+              to the deadline <B>plus the grace window</B>; after that the door
+              closes and you can no longer pay in. You cannot contribute twice to
+              the same round, and the round&rsquo;s recipient owes nothing that
+              round.
             </P>
           </Section>
 
           <Section id="collecting" title="Collecting your turn">
             <P>
               When it is your round, you receive the pool. You do not have to be
-              online for it: once the round is fully funded, or once its deadline
-              passes, <B>anyone</B> can trigger the payout, and the program sends
-              it to whoever the rotation says — it cannot be redirected.
+              online: the <B>last contribution the round needs pays you out in
+              the same transaction</B>. If the round instead reaches its deadline
+              short, anyone can trigger the payout with whatever was pooled. The
+              program sends it to whoever the rotation says — it cannot be
+              redirected.
             </P>
           </Section>
 
-          <Section id="missing" title="If someone misses a round">
+          <Section id="missing" title="Grace, defaults & ejection">
             <P>
-              The rotation never stalls. After the deadline, the payout goes out
-              with whatever was actually pooled, and every missed contribution is
-              recorded permanently against that member, visible on their row.
-              Enforcement is social — the same way ajo has always worked — but
-              now it is onchain and impossible to hide.
+              After a round&rsquo;s deadline, a grace window (set per circle)
+              gives stragglers time to pay. Once grace closes with money still
+              missing, the crank <B>ejects</B> every no-show: their deposit is
+              forfeited into the round they missed — so that round&rsquo;s
+              recipient is still made whole — and they are removed from the
+              rotation, their slot marked permanently. If ejections leave fewer
+              than two active members, the circle ends as <B>Failed</B> and the
+              rest withdraw their deposits.
+            </P>
+          </Section>
+
+          <Section id="extending" title="Running it again">
+            <P>
+              A circle runs the number of rotations set at creation, then goes{" "}
+              <B>Completed</B> — but that is not the end. The creator can propose
+              more rotations; the extension starts only once <B>every</B> live
+              member opts in. Declining withdraws your deposit and ends your
+              membership for good. At any completion you can simply withdraw your
+              deposit and walk away.
             </P>
           </Section>
 
@@ -162,72 +191,90 @@ export default function DocsPage() {
             </P>
             <P>
               There is no admin authority anywhere in the program: no pause, no
-              sweep, no upgrade-only withdrawal, no close-to-creator.
+              upgrade-only withdrawal, no close-to-creator. The one sweep is{" "}
+              <Code>close_group</Code>, and only the creator, only while the
+              circle is empty and forming, can call it. A token sent straight to
+              the vault after that is stranded — nobody can move it.
             </P>
           </Section>
 
           <Section id="shuffle" title="The rotation shuffle">
             <P>
-              When the last seat fills, the program derives a seed from a recent
-              slot hash (the <Code>SlotHashes</Code> sysvar) mixed with the group
-              address, expands it with SplitMix64, and runs a Fisher–Yates
-              shuffle over the member indices. The result is written to{" "}
-              <Code>Group.rotation</Code> once and never touched again.
+              At the start of each rotation, <Code>open_cycle</Code> derives a
+              seed from a recent slot hash (the <Code>SlotHashes</Code> sysvar)
+              mixed with the group address and salted with the rotation index,
+              expands it with SplitMix64, and runs a Fisher–Yates shuffle over
+              the live member slots. The result is written to{" "}
+              <Code>Group.rotation</Code> and used for that whole rotation.
             </P>
             <P>
               No party chooses the order, and anyone can recompute it from the
-              same public inputs to check it. <B>The caveat, stated plainly:</B>{" "}
-              a Solana block producer who controls the exact sealing slot can
-              bias the slot hash. For a circle of people who know each other we
-              accept that trade rather than take on a VRF&rsquo;s complexity —
-              but you should know it exists.
+              same public inputs. <B>The caveat, stated plainly:</B> whoever
+              lands the boundary <Code>open_cycle</Code> transaction chooses the
+              slot hash and could grind it — once per rotation, not just at seal.
+              For a circle of people who know each other we accept that rather
+              than take on a VRF&rsquo;s complexity — but you should know it.
             </P>
           </Section>
 
-          <Section id="crank" title="The permissionless crank">
+          <Section id="crank" title="Auto-payout & the crank">
             <P>
-              <Code>disburse_payout</Code> can be called by any signer. It
-              requires the round to be fully funded, or its deadline passed. The
-              recipient is <Code>group.members[cycle.recipient_index]</Code>, and
-              the recipient token account passed in is constrained to that owner
-              and to the group&rsquo;s mint — so the caller cannot point the
-              payout anywhere else. The transfer is signed by the group PDA;
-              missed contributors are recorded; the rotation advances.
+              When the last outstanding contribution lands, <Code>contribute</Code>{" "}
+              disburses the payout in the same transaction — no separate step —
+              as long as the recipient&rsquo;s token account already exists.
+            </P>
+            <P>
+              Otherwise <Code>disburse_payout</Code>, callable by any signer,
+              handles it: once the round is funded, or once the grace window has
+              closed. The recipient is{" "}
+              <Code>group.members[cycle.recipient_index]</Code> and the recipient
+              token account is constrained to that owner and the group&rsquo;s
+              mint, so the caller cannot point the payout elsewhere. No-shows are
+              ejected and their deposits forfeited into the pool; the transfer is
+              signed by the group PDA; the rotation advances.
             </P>
           </Section>
 
           <Section id="accounts" title="Accounts">
             <Pre>{`Group   PDA ["group", creator, seed: u64]
   creator, seed, mint          pinned at creation
-  contribution: u64            per member, per round (USDC base units)
-  cycle_secs: i64              round length
-  capacity, member_count: u8   seats / filled
-  members:  [Pubkey; 12]
-  rotation: [u8; 12]           shuffled member indices, written at seal
-  missed:   [u16; 12]          permanent per-member miss counter
-  status                       Forming | Active | Completed
-  current_cycle: u8
-  cycle_start: i64
+  contribution, deposit: u64   per round / locked at join (deposit >= contribution)
+  cycle_secs, grace_secs: i64  round length / post-deadline window
+  capacity, seat_count: u8     seats / assigned
+  members:  [Pubkey; 12]       slot -> wallet; tombstoned, never compacted
+  rotation: [u8; 12]           live slots for the current rotation, reshuffled each pass
+  rotation_len, rotation_pos   payouts this rotation / position in it
+  rotations_target/_done: u8   agreed rotations (grows on extension) / completed
+  ejected, defaulted: u16      bitmasks — out of the circle / ejected for a miss
+  optin_mask: u16              extension opt-ins
+  status                       Forming | Active | Completed | Extending | Failed
+  current_cycle: u16           global, monotonic — the Cycle PDA seed
 
-Cycle   PDA ["cycle", group, index: u8]
-  recipient_index: u8          = group.rotation[index], fixed at open
-  deadline: i64
-  pooled: u64
-  contributed: u16             bitmask over the 12 member slots
-  contributor_count: u8
+Cycle   PDA ["cycle", group, index: u16]
+  recipient_index: u8          slot that collects; owes nothing this round
+  deadline: i64                = opened_at + cycle_secs
+  pooled: u64                  contributions + forfeited deposits
+  contributed, required: u16   settled / on the hook (live_mask at open)
+  ejected_here: u16            slots this crank ejected
   disbursed: bool
-  payout: u64                  amount actually paid (may be short)
+  payout: u64
 
-Vault   associated token account, authority = Group PDA`}</Pre>
+Vault   associated token account, authority = Group PDA
+        holds every live deposit + the open round's pool`}</Pre>
           </Section>
 
           <Section id="instructions" title="Instructions & PDAs">
-            <Pre>{`create_group(seed, name, contribution, cycle_secs, capacity)
-join_group()          seals inline when the last seat fills
-leave_group()         Forming only, non-creator
-open_cycle()          permissionless; inits the current Cycle account
-contribute()          member → vault; sets bitmask bit; late allowed
-disburse_payout()     permissionless crank; recipient fixed by rotation`}</Pre>
+            <Pre>{`create_group(seed, name, contribution, deposit, cycle_secs, grace_secs, capacity, rotations)
+join_group()          locks the deposit; goes Active when the last seat fills
+leave_group()         Forming only, non-creator; refunds the deposit
+open_cycle()          permissionless; inits the Cycle; reshuffles at a rotation boundary
+contribute()          member -> vault; auto-disburses if it completes the round
+disburse_payout()     permissionless crank; ejects no-shows past grace
+propose_extension()   creator, Completed; propose more rotations
+opt_in_extension()    seals the extension once every live member has opted in
+cancel_extension()    creator any time, or anyone once the opt-in window closes
+close_position()      withdraw the deposit + exit (Completed | Extending | Failed)
+close_group()         creator, Forming, seat_count == 1; refunds + closes`}</Pre>
             <P className="mt-5">
               Program <A href={explorerUrl(PROGRAM_ID)}>{PROGRAM_ID}</A>
               <br />
@@ -243,9 +290,11 @@ disburse_payout()     permissionless crank; recipient fixed by rotation`}</Pre>
               <A href={explorerUrl(USDC_MINT)}>{USDC_MINT}</A>
             </P>
             <P className="mt-4 text-[13px] text-ink-faint">
-              Deployed to devnet in slot 489374645. The program is upgradeable by
-              the authority above; a production release would set it to a
-              multisig or burn it.
+              Deployed to devnet. The program is upgradeable by the authority
+              above; a production release would set it to a multisig or burn it.
+              Only classic SPL Token mints are accepted — a Token-2022 mint with
+              a transfer hook or fee would break the vault accounting, so it is
+              rejected at creation.
             </P>
           </Section>
 
@@ -254,9 +303,10 @@ disburse_payout()     permissionless crank; recipient fixed by rotation`}</Pre>
               {[
                 "Take custody — the vault authority is a PDA; no Savora key can sign for it.",
                 "Pause or freeze a circle — there is no admin instruction.",
-                "Change the collection order — the shuffle is written once, at seal.",
-                "Redirect a payout — the recipient account is checked on every crank.",
-                "Stop the rotation — after a deadline, anyone can crank it forward.",
+                "Change the collection order — the shuffle is fixed for each rotation.",
+                "Redirect a payout — the recipient account is checked on every payout.",
+                "Touch a live member's deposit — a payout only ever draws the round's pool.",
+                "Sweep the vault — except a creator closing their own empty, unfilled circle.",
               ].map((t) => (
                 <li key={t} className="flex gap-3">
                   <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-accent" />

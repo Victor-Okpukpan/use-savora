@@ -94,7 +94,7 @@ Redeploys: `vercel --prod`.
 | `/` | Landing (marketing motion register) |
 | `/app` | Dashboard — Circles · Activity · Profile tabs |
 | `/app/new` | Create a circle |
-| `/g/[address]` | A circle: roster, rotation, contribute / crank, activity |
+| `/g/[address]` | A circle: roster, rotation, contribute / crank, round countdown, deposit withdrawal, extensions, activity |
 | `/docs` | How it works, in plain language and at the protocol level |
 
 ## Theme
