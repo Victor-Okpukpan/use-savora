@@ -322,7 +322,7 @@ function FormingPanel({
         </div>
 
         <p className="border-t border-line pt-4 text-[12px] leading-[1.7] text-ink-faint">
-          When the last seat fills, the collection order is shuffled on-chain and
+          When the last seat fills, the collection order is shuffled onchain and
           fixed for good — no one picks it. A block producer controlling the exact
           sealing moment could bias the shuffle; for a circle of people who know
           each other, that&rsquo;s a trade we make openly.

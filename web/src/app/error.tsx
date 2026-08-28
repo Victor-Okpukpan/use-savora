@@ -24,7 +24,7 @@ export default function Error({
         <h1 className="display-3 mt-4 text-ink">Something broke.</h1>
         <p className="mt-4 max-w-[46ch] text-[15px] leading-[1.6] text-ink-muted">
           That&rsquo;s on us. Your wallet and your circles are untouched — the
-          data lives on-chain, not here.
+          data lives onchain, not here.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <button

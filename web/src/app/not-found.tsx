@@ -17,7 +17,7 @@ export default function NotFound() {
         <h1 className="display-3 mt-4 text-ink">This link goes nowhere.</h1>
         <p className="mt-4 max-w-[46ch] text-[15px] leading-[1.6] text-ink-muted">
           The page moved, the invite link is wrong, or the circle it pointed to
-          was never on-chain. Nothing here.
+          was never onchain. Nothing here.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <Link

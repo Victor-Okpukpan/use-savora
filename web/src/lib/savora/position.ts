@@ -56,7 +56,7 @@ export function computePosition(
  * `Group` accounts alone — no extra RPC:
  *
  *   roundsClosed  = group.current_cycle          (disbursed cycles)
- *   missed        = group.missed[myIndex]         (permanent on-chain counter)
+ *   missed        = group.missed[myIndex]         (permanent onchain counter)
  *   paid          = roundsClosed − missed
  *
  * `contributed` is exact: the program enforces the exact contribution amount,

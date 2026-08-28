@@ -27,7 +27,7 @@ export default function Home() {
         {/* ---- Hero ---- */}
         <section className="mx-auto w-full max-w-site px-6 pt-20 sm:px-8 sm:pt-28 lg:px-12">
           <Reveal>
-            <p className="micro">Ajo, on-chain</p>
+            <p className="micro">Ajo, onchain</p>
           </Reveal>
 
           <LineReveal
@@ -63,7 +63,7 @@ export default function Home() {
           <Reveal>
             <Parallax
               range={28}
-              className="relative mx-auto max-h-[540px] max-w-mock overflow-hidden sm:max-h-[640px]"
+              className="relative mx-auto max-h-135 max-w-mock overflow-hidden sm:max-h-160"
             >
               <ProductMock />
               <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-linear-to-t from-bg to-transparent" />
@@ -105,7 +105,7 @@ export default function Home() {
             <Figure
               n="0.2"
               title="The order is fixed at seal"
-              caption="When the last seat fills, the collection order is shuffled on-chain from a recent block hash. No one picks it — not even the person who started the circle."
+              caption="When the last seat fills, the collection order is shuffled onchain from a recent block hash. No one picks it — not even the person who started the circle."
             >
               <FigShuffle />
             </Figure>
@@ -147,7 +147,7 @@ export default function Home() {
             </RevealGroup>
 
             <Reveal>
-              <div className="relative max-h-[560px] overflow-hidden rounded-panel">
+              <div className="relative max-h-140 overflow-hidden rounded-panel">
                 <ProductMock variant="contribute" />
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-linear-to-t from-bg to-transparent" />
               </div>

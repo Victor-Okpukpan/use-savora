@@ -14,7 +14,8 @@ export async function generateMetadata({
     return { title: "Circle", robots: { index: false, follow: false } };
   }
 
-  const description = `${circle.name} — ${circle.contribution} USDC per round, ${circle.seats} seats, ${circle.state.toLowerCase()}. A non-custodial ajo circle on Savora.`;
+  // Kept short — details are on the OG card; names cap at 32 bytes onchain.
+  const description = `${circle.name} — ${circle.contribution} USDC per round, ${circle.seats} seats. A non-custodial ajo circle on Savora.`;
 
   return {
     title: circle.name,

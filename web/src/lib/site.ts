@@ -13,5 +13,6 @@ export const SITE_URL = (
 
 export const SITE_NAME = "Savora";
 
+/** ~117 chars — social previews truncate near 125, search near 155. */
 export const SITE_DESCRIPTION =
-  "Run an ajo savings circle where the pool sits in a non-custodial contract on Solana. Fixed contributions each round, one member collects per rotation, nobody holds the money.";
+  "A non-custodial ajo savings circle on Solana: fixed rounds, one member collects per rotation, nobody holds the money.";

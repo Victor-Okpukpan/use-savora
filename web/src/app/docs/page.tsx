@@ -13,7 +13,7 @@ import {
 import { DocNav } from "./nav";
 
 const DOCS_DESCRIPTION =
-  "How Savora works, in plain language and at the protocol level: the vault, the rotation shuffle, the permissionless crank, and what Savora cannot do.";
+  "How Savora works — in plain language and at the protocol level: the vault, the shuffle, the crank, the guarantees.";
 
 export const metadata: Metadata = {
   title: "Docs",
@@ -36,7 +36,7 @@ const NAV: { heading: string; id: string; items: [string, string][] }[] = [
     heading: "Using Savora",
     id: "using",
     items: [
-      ["ajo-on-chain", "Ajo, on-chain"],
+      ["ajo-onchain", "Ajo, onchain"],
       ["starting", "Starting a circle"],
       ["joining", "Joining by invite link"],
       ["contributing", "Contributing each round"],
@@ -73,7 +73,7 @@ export default function DocsPage() {
           </h1>
 
           {/* ---------- Using Savora ---------- */}
-          <Section id="ajo-on-chain" kicker="Using Savora" title="Ajo, on-chain">
+          <Section id="ajo-onchain" kicker="Using Savora" title="Ajo, onchain">
             <P>
               Ajo (also esusu, adashe, or a rotating savings and credit
               association) is a group that agrees on a fixed amount, contributes
@@ -101,7 +101,7 @@ export default function DocsPage() {
               Every circle has a link — <Code>/g/&lt;address&gt;</Code>. Anyone
               with it can join while seats remain. When the last seat fills, the
               circle <B>seals itself</B> in the same transaction: the collection
-              order is shuffled on-chain and round&nbsp;1 opens. Before a circle
+              order is shuffled onchain and round&nbsp;1 opens. Before a circle
               seals, any member except the creator can leave.
             </P>
           </Section>
@@ -129,7 +129,7 @@ export default function DocsPage() {
               with whatever was actually pooled, and every missed contribution is
               recorded permanently against that member, visible on their row.
               Enforcement is social — the same way ajo has always worked — but
-              now it is on-chain and impossible to hide.
+              now it is onchain and impossible to hide.
             </P>
           </Section>
 

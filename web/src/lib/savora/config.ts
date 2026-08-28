@@ -16,7 +16,7 @@ export const PROGRAM_DATA =
 export const UPGRADE_AUTHORITY =
   "AL3LxYBsFcShcGq7kuQSA4mN8dSVKyvNQdHsQE9WT7VX" as Address;
 
-/** On-chain Anchor IDL account (`anchor idl fetch` reads this). */
+/** Onchain Anchor IDL account (`anchor idl fetch` reads this). */
 export const IDL_ACCOUNT =
   "GVjyn6Gbn9dTr8AVdJzArD6YGr9e8xzndWcryghfstMD" as Address;
 

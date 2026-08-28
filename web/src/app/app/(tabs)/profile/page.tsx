@@ -178,7 +178,7 @@ function ReliabilityRecord({
     <section>
       <div className="mb-3 flex items-center gap-2">
         <h2 className="micro">Reliability record</h2>
-        <span className="text-[10px] text-ink-faint">verifiable on-chain</span>
+        <span className="text-[10px] text-ink-faint">verifiable onchain</span>
       </div>
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-4">
         {cells.map((c) => (
@@ -207,7 +207,7 @@ function ReliabilityRecord({
         </p>
       ) : null}
       <p className="mt-3 max-w-[56ch] text-[11px] leading-[1.6] text-ink-faint">
-        Every figure here is derived from the on-chain <code>Group.missed</code>{" "}
+        Every figure here is derived from the onchain <code>Group.missed</code>{" "}
         counter and disbursed-cycle count — no database, and anyone can check it.
         Amounts collected are shown as turns rather than USDC, since a payout can
         be short when others miss.

@@ -7,7 +7,7 @@
 export const BRAND = {
   name: "Savora",
   tagline: "Your savings circle, without someone holding the money.",
-  shortTagline: "Rotating savings, on-chain.",
+  shortTagline: "Rotating savings, onchain.",
   footer: "Non-custodial · Solana",
   /* OG cards render on the warm-paper light palette regardless of theme. */
   paper: "#f7f4ec",

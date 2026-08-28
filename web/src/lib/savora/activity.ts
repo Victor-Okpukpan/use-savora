@@ -70,7 +70,7 @@ export function deriveActivity(
     out.push({
       key: "sealed",
       kind: "sealed",
-      text: "Circle sealed · collection order fixed on-chain",
+      text: "Circle sealed · collection order fixed onchain",
       ref: group.address,
     });
   }

@@ -19,7 +19,7 @@ const instrumentSerif = Instrument_Serif({
   display: "swap",
 });
 
-const TITLE = "Savora — rotating savings, on-chain";
+const TITLE = "Savora — rotating savings, onchain";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
