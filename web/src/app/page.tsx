@@ -127,13 +127,13 @@ export default function Home() {
             </h2>
           </Reveal>
 
-          <div className="mt-12 grid gap-12 lg:grid-cols-[1fr_1fr] lg:items-center lg:gap-16">
-            <RevealGroup className="grid divide-y divide-line border-y border-line">
+          <div className="mt-12 flex flex-col gap-12 lg:grid lg:grid-cols-[1fr_1fr] lg:items-center lg:gap-16">
+            <RevealGroup className="grid min-w-0 divide-y divide-line border-y border-line">
               {STEPS.map((step) => (
                 <RevealItem key={step.n}>
-                  <div className="flex gap-6 py-8">
+                  <div className="flex min-w-0 gap-6 py-8">
                     <span className="micro pt-1">{step.n}</span>
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="text-[16px] font-medium text-ink">
                         {step.title}
                       </h3>
@@ -146,7 +146,7 @@ export default function Home() {
               ))}
             </RevealGroup>
 
-            <Reveal>
+            <Reveal className="min-w-0">
               <div className="relative max-h-140 overflow-hidden rounded-panel">
                 <ProductMock variant="contribute" />
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-linear-to-t from-bg to-transparent" />

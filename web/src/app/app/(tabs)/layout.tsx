@@ -20,8 +20,8 @@ export default function DashboardLayout({
     <div className="flex min-h-dvh flex-col">
       <SiteHeader wide={false} />
       <main className="mx-auto w-full max-w-reading flex-1 px-6 py-10 sm:px-8">
-        <div className="flex items-center justify-between gap-4 border-b border-line">
-          <TabNav />
+        <div className="flex items-center gap-3 border-b border-line">
+          <TabNav className="min-w-0 flex-1" />
           <Link href="/app/new" className="mb-2.5 shrink-0">
             <Button variant="secondary">New circle</Button>
           </Link>

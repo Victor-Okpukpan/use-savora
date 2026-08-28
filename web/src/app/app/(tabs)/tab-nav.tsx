@@ -9,11 +9,13 @@ const TABS = [
   { href: "/app/profile", label: "Profile" },
 ];
 
-export function TabNav() {
+export function TabNav({ className = "" }: { className?: string }) {
   const pathname = usePathname();
 
   return (
-    <nav className="flex gap-1">
+    <nav
+      className={`flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
+    >
       {TABS.map((tab) => {
         const active =
           tab.href === "/app"
@@ -23,7 +25,7 @@ export function TabNav() {
           <Link
             key={tab.href}
             href={tab.href}
-            className={`-mb-px border-b-2 px-3 pb-2.5 pt-1 text-[14px] transition-colors ${
+            className={`-mb-px shrink-0 border-b-2 px-3 pb-2.5 pt-1 text-[14px] transition-colors ${
               active
                 ? "border-accent font-medium text-ink"
                 : "border-transparent text-ink-muted hover:text-ink"

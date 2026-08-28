@@ -185,6 +185,10 @@ html {
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Safety net against stray horizontal overflow on narrow screens. `clip`
+     (not `hidden`) doesn't create a scroll container, so sticky/fixed still
+     work. Real overflow bugs should still be fixed at the source. */
+  overflow-x: clip;
 }
 
 body {
@@ -262,6 +266,9 @@ body::before {
 .addr {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
+  /* A full base58 address is one unbreakable token; let it wrap rather than
+     push its container wide. `.truncate` still wins where it's applied. */
+  overflow-wrap: anywhere;
 }
 
 /* Hairline grid: dividers that disappear at the edges of a wrapped row. */
