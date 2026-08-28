@@ -7,7 +7,7 @@ import type { GroupAccount, CycleAccount } from "./queries";
  */
 export type ActivityEvent = {
   key: string;
-  kind: "sealed" | "paid" | "closed" | "open" | "missed" | "completed";
+  kind: "formed" | "sealed" | "paid" | "closed" | "open" | "missed" | "completed";
   round?: number;
   /** Member index this event concerns, if any. */
   memberIndex?: number;
@@ -74,6 +74,18 @@ export function deriveActivity(
       ref: group.address,
     });
   }
+
+  // Always the oldest event: the circle exists from the moment it's created,
+  // so a still-forming circle has this one line and nothing else.
+  out.push({
+    key: "formed",
+    kind: "formed",
+    text:
+      g.status === 0
+        ? `Circle created · ${g.memberCount}/${g.capacity} seats filled`
+        : "Circle created",
+    ref: group.address,
+  });
 
   return out;
 }

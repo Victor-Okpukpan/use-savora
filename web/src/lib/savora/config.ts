@@ -45,6 +45,20 @@ export const RPC_SUBSCRIPTIONS_URL =
   process.env.NEXT_PUBLIC_SOLANA_RPC_SUBSCRIPTIONS_URL ??
   "wss://api.devnet.solana.com";
 
+/**
+ * Endpoint for `getProgramAccounts` scans (used to find a member's circles).
+ * Alchemy's free tier rejects `getProgramAccounts` outright ("not available on
+ * the Free tier"), the same shape of gap as its missing WS subscriptions — so
+ * this defaults to the public devnet RPC, which serves it fine at this scale.
+ * Override once the main RPC's plan includes the method.
+ */
+export const RPC_SCAN_URL =
+  process.env.NEXT_PUBLIC_SOLANA_RPC_SCAN_URL ??
+  (process.env.NEXT_PUBLIC_SOLANA_RPC_URL &&
+  !/\balchemy\.com\b/.test(process.env.NEXT_PUBLIC_SOLANA_RPC_URL)
+    ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL
+    : "https://api.devnet.solana.com");
+
 /** Privy's Solana chain literal for signing + `solana.rpcs` config. */
 export const SOLANA_CHAIN = "solana:devnet" as const;
 

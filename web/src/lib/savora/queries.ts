@@ -16,7 +16,7 @@ import {
 
 import { PROGRAM_ID } from "./config";
 import { findCyclePda } from "./pdas";
-import { rpc as defaultRpc, type Rpc } from "./rpc";
+import { rpc as defaultRpc, rpcScan, type Rpc } from "./rpc";
 
 export type GroupAccount = { address: Address; data: Group };
 export type CycleAccount = { address: Address; data: Cycle };
@@ -59,11 +59,12 @@ export async function getCycleHistory(
  *
  * A `getProgramAccounts` discriminator scan, filtered client-side on the
  * members array. Fine at devnet scale; swap for an index if this ever needs
- * to serve real traffic.
+ * to serve real traffic. Runs against `rpcScan` — not every provider serves
+ * `getProgramAccounts` on its free tier.
  */
 export async function getGroupsForMember(
   member: Address,
-  rpc: Rpc = defaultRpc,
+  rpc: Rpc = rpcScan,
 ): Promise<GroupAccount[]> {
   const discriminatorBase58 = getBase58Decoder().decode(GROUP_DISCRIMINATOR);
   const response = await rpc

@@ -4,6 +4,7 @@ import type { ActivityEvent } from "@/lib/savora/activity";
 import { MemberMark } from "./member-identity";
 
 const KIND_LABEL: Record<ActivityEvent["kind"], string> = {
+  formed: "Created",
   sealed: "Sealed",
   paid: "Payout",
   closed: "Closed",

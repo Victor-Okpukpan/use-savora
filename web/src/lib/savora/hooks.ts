@@ -127,6 +127,7 @@ export function useAllActivity(groups: GroupAccount[] | undefined) {
       open: 3,
       missed: 4,
       sealed: 5,
+      formed: 6,
     };
     events.sort((a, b) => {
       const ra = a.round ?? -1;

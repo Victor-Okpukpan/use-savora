@@ -25,6 +25,21 @@ export default function CirclesTab() {
   if (!authenticated) return <ConnectGate />;
   if (groups.isLoading)
     return <p className="text-[13px] text-ink-muted">Loading…</p>;
+  if (groups.isError)
+    return (
+      <Card className="p-8 text-center">
+        <h2 className="text-[15px] font-medium text-ink">
+          Couldn&rsquo;t load your circles
+        </h2>
+        <p className="mx-auto mt-2 max-w-sm text-[13px] leading-[1.6] text-ink-muted">
+          The RPC didn&rsquo;t answer. Your circles are safe onchain — this is
+          just the read. Try again in a moment.
+        </p>
+        <div className="mt-5 flex justify-center">
+          <Button onClick={() => groups.refetch()}>Retry</Button>
+        </div>
+      </Card>
+    );
 
   const data = groups.data ?? [];
   if (data.length === 0) {
