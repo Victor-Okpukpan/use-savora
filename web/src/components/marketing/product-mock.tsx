@@ -14,6 +14,9 @@ import {
 } from "@/lib/savora/demo";
 import { decodeName, formatUsdc } from "@/lib/savora/format";
 import { activeCount, paidCount, roundTarget, seatAddresses } from "@/lib/savora/group";
+import { SITE_URL } from "@/lib/site";
+
+const SITE_HOST = SITE_URL.replace(/^https?:\/\//, "");
 
 /**
  * Not a screenshot and not a drawing — the actual app components, fed the
@@ -43,7 +46,7 @@ export function ProductMock({
         <span className="h-2.5 w-2.5 rounded-full bg-line-strong" />
         <span className="h-2.5 w-2.5 rounded-full bg-line-strong" />
         <span className="addr ml-3 truncate text-[11px] text-ink-faint">
-          savora.app/g/{DEMO_GROUP.address.slice(0, 8)}…
+          {SITE_HOST}/g/{DEMO_GROUP.address.slice(0, 8)}…
         </span>
       </div>
 
