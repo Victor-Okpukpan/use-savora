@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ConnectButton } from "./connect-button";
+import { MobileNav } from "./mobile-nav";
 import { ThemeToggle } from "./theme-toggle";
 import { Wordmark } from "./wordmark";
 
@@ -28,10 +29,13 @@ export function SiteHeader({ wide = true }: { wide?: boolean }) {
           >
             Docs
           </Link>
-          <ThemeToggle />
+          <span className="hidden sm:inline-flex">
+            <ThemeToggle />
+          </span>
           <span className="ml-1.5">
             <ConnectButton shape="pill" />
           </span>
+          <MobileNav />
         </nav>
       </div>
     </header>
